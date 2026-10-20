@@ -3,13 +3,13 @@
 Шаблон pnpm-монорепозитория для персонализированных бизнес-инсайтов. Сейчас здесь только основа приложений; аналитика, агент и предметный интерфейс не реализованы.
 
 ```text
-Specs/                 требования из PDF, архитектура и план реализации
-Projects/frontend/     React + TanStack Start + полный набор shadcn/ui
-Projects/backend/      Fastify + Drizzle ORM + PostgreSQL adapter
-Research/              пустая папка для будущих skills, agent-команд и MCP
+specs/                 требования из PDF, архитектура и план реализации
+projects/frontend/     React + TanStack Start + полный набор shadcn/ui
+projects/backend/      Fastify + Drizzle ORM + PostgreSQL adapter
+research/              пустая папка для будущих skills, agent-команд и MCP
 ```
 
-Начните со [спецификаций](Specs/README.md). Исходный [PDF кейса](Specs/source/brief.pdf) сохранен вместе с ними. Требования PDF отделены от выбранных технических решений и открытых вопросов.
+Начните со [спецификаций](specs/README.md). Исходный [PDF кейса](specs/source/brief.pdf) сохранен вместе с ними. Требования PDF отделены от выбранных технических решений и открытых вопросов.
 
 ## Окружение
 
@@ -32,11 +32,11 @@ Frontend — порт 3000, Fastify — 3001. Nitro направляет `/api/*
 
 ```sh
 pnpm infra:up
-cp Projects/backend/.env.example Projects/backend/.env
+cp projects/backend/.env.example projects/backend/.env
 pnpm dev
 ```
 
-Не перезаписывайте уже заполненный `.env`. Команды backend читают `.env` из `Projects/backend`, а не из корня. Локальные credentials в примере и compose предназначены только для разработки.
+Не перезаписывайте уже заполненный `.env`. Команды backend читают `.env` из `projects/backend`, а не из корня. Локальные credentials в примере и compose предназначены только для разработки.
 
 ```sh
 curl --fail http://127.0.0.1:3001/health
@@ -75,7 +75,7 @@ docker compose --profile apps up --build --wait
 
 Запускает dev frontend, dev backend и PostgreSQL. Это контейнерная среда разработки, не production image; исходники включаются в image, после изменения нужен rebuild. Порты 3000/3001 должны быть свободны — остановите локальный `pnpm dev` заранее.
 
-`docker compose --profile apps down` останавливает все три контейнера и сохраняет volume. Воркер/Redis еще не добавлены; их место и будущий lifecycle описаны в [архитектуре агента](Specs/04-agent-runtime.md).
+`docker compose --profile apps down` останавливает все три контейнера и сохраняет volume. Воркер/Redis еще не добавлены; их место и будущий lifecycle описаны в [архитектуре агента](specs/04-agent-runtime.md).
 
 При сборке за корпоративным TLS-прокси Dockerfile поддерживает необязательный BuildKit secret `extra_ca` с доверенным PEM-сертификатом. Передайте его через локальный Compose override (`build.secrets` и верхнеуровневый `secrets.extra_ca.file`) и при необходимости `--build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg NO_PROXY`. CA используется только во время установки; проверка TLS остается включенной. Пути и сертификаты конкретной облачной среды не входят в репозиторий.
 
@@ -89,11 +89,11 @@ docker compose --profile apps up --build --wait
 | `CORS_ORIGIN` | `http://localhost:3000` | Разрешенный origin фронтенда |
 | `DATABASE_URL` | отсутствует | PostgreSQL connection string; обязателен для Drizzle CLI |
 
-LLM-ключи и MCP-конфигурация пока не нужны: соответствующих интеграций нет. Не храните секреты в Git, PDF-спецификациях и Research.
+LLM-ключи и MCP-конфигурация пока не нужны: соответствующих интеграций нет. Не храните секреты в Git, PDF-спецификациях и research.
 
 ## Drizzle
 
-`Projects/backend/src/db/schema.ts` намеренно пуст. Новые предметные таблицы добавляются отдельной задачей:
+`projects/backend/src/db/schema.ts` намеренно пуст. Новые предметные таблицы добавляются отдельной задачей:
 
 ```sh
 pnpm db:generate
@@ -101,11 +101,11 @@ pnpm db:migrate
 pnpm --filter @alfa/backend db:studio
 ```
 
-Команды требуют DATABASE_URL из backend `.env` или процесса. SQL-миграции в `Projects/backend/drizzle/` следует хранить в Git. Не использовать `push`/reset для общей базы. Сейчас мигрировать нечего.
+Команды требуют DATABASE_URL из backend `.env` или процесса. SQL-миграции в `projects/backend/drizzle/` следует хранить в Git. Не использовать `push`/reset для общей базы. Сейчас мигрировать нечего.
 
 ## shadcn/ui
 
-Все UI-компоненты из реестра стиля `new-york-v4` добавлены в `Projects/frontend/src/components/ui/`, включая sidebar, chart, form и combobox; список сохранен в `Projects/frontend/shadcn-components.json`. Тема neutral и стили инициализированы. Компоненты импортируются по месту использования, например `@/components/ui/button`. Готовые страницы/демоблоки и примеры реестра не добавляются: это не отдельные UI-примитивы.
+Все UI-компоненты из реестра стиля `new-york-v4` добавлены в `projects/frontend/src/components/ui/`, включая sidebar, chart, form и combobox; список сохранен в `projects/frontend/shadcn-components.json`. Тема neutral и стили инициализированы. Компоненты импортируются по месту использования, например `@/components/ui/button`. Готовые страницы/демоблоки и примеры реестра не добавляются: это не отдельные UI-примитивы.
 
 Для последующего обновления или добавления:
 
@@ -117,6 +117,6 @@ pnpm ui:add --all --yes
 
 ## Агентная среда
 
-Предлагается отдельный worker process в пакете backend, BullMQ + Redis, собственный ограниченный агентный цикл и контролируемые tools/MCP. Сейчас это только спецификация. «OpenCoda» предварительно трактуется как OpenCode, выбор не закреплен. PDF запрещает готовые автономные агенты и мультиагентные системы как основной компонент: допустимость технической оболочки надо проверить до интеграции. Разрешенные модели и бюджет 500 ₽/день перечислены в Specs.
+Предлагается отдельный worker process в пакете backend, BullMQ + Redis, собственный ограниченный агентный цикл и контролируемые tools/MCP. Сейчас это только спецификация. «OpenCoda» предварительно трактуется как OpenCode, выбор не закреплен. PDF запрещает готовые автономные агенты и мультиагентные системы как основной компонент: допустимость технической оболочки надо проверить до интеграции. Разрешенные модели и бюджет 500 ₽/день перечислены в specs.
 
 Сторонние компоненты и статус интеграций: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -9,13 +9,13 @@ RUN --mount=type=secret,id=extra_ca \
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-COPY Projects/frontend/package.json ./Projects/frontend/package.json
-COPY Projects/backend/package.json ./Projects/backend/package.json
+COPY projects/frontend/package.json ./projects/frontend/package.json
+COPY projects/backend/package.json ./projects/backend/package.json
 RUN --mount=type=secret,id=extra_ca \
     if [ -f /run/secrets/extra_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/extra_ca; fi; \
     pnpm install --frozen-lockfile
 
 COPY tsconfig.base.json ./
-COPY Projects ./Projects
+COPY projects ./projects
 
 CMD ["pnpm", "dev"]
