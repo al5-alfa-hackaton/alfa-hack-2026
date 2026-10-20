@@ -3,11 +3,11 @@
 ## Текущий шаблон
 
 ```text
-Specs/                    требования и проектные решения
-Projects/
+specs/                    требования и проектные решения
+projects/
   frontend/               React + TanStack Start + shadcn/ui
   backend/                Fastify + Drizzle + PostgreSQL adapter
-Research/                 резерв под агентные исследования (.gitkeep)
+research/                 резерв под агентные исследования (.gitkeep)
 ```
 
 | Слой | Выбор | Обоснование |

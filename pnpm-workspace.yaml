@@ -1,5 +1,5 @@
 packages:
-  - Projects/*
+  - projects/*
 
 allowBuilds:
   esbuild: true
