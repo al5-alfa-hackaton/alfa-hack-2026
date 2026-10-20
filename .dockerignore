@@ -9,5 +9,5 @@
 !**/.env.example
 **/*.log
 .pnpm-store
-Specs
-Research
+specs
+research

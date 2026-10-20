@@ -52,7 +52,7 @@
 
 ## Исходники UI
 
-Компоненты `Projects/frontend/src/components/ui/` и helper/hook импортированы официальным CLI shadcn/ui (MIT), стиль new-york-v4. Upstream: https://github.com/shadcn-ui/ui.
+Компоненты `projects/frontend/src/components/ui/` и helper/hook импортированы официальным CLI shadcn/ui (MIT), стиль new-york-v4. Upstream: https://github.com/shadcn-ui/ui.
 
 Copyright (c) 2023 shadcn.
 
@@ -66,8 +66,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 - PostgreSQL 17: PostgreSQL License; Docker image postgres основан на Alpine, содержит компоненты с собственными лицензиями.
 - Node.js 24: MIT и bundled third-party licenses; dev image основан на Debian. pnpm: MIT.
-- `Specs/source/brief.pdf`: предоставленный пользователем кейс Changellenge / Альфа-Банк, источник требований; права принадлежат соответствующим правообладателям, открытая лицензия на документ не заявляется.
+- `specs/source/brief.pdf`: предоставленный пользователем кейс Changellenge / Альфа-Банк, источник требований; права принадлежат соответствующим правообладателям, открытая лицензия на документ не заявляется.
 
 ## Модели, данные и интеграции
 
-LLM, датасеты CSV, оригинальная аналитика банка, внешние новостные сервисы, OpenCode/другой harness, BullMQ, Redis и MCP-серверы **пока не подключены**. Их упоминание в Specs — проектные предложения и требования, не заявление об использовании. Смоделированных банковских интеграций и тестовых учетных записей пока нет. Дополнить этот файл лицензиями, provenance и ограничениями до их включения.
+LLM, датасеты CSV, оригинальная аналитика банка, внешние новостные сервисы, OpenCode/другой harness, BullMQ, Redis и MCP-серверы **пока не подключены**. Их упоминание в specs — проектные предложения и требования, не заявление об использовании. Смоделированных банковских интеграций и тестовых учетных записей пока нет. Дополнить этот файл лицензиями, provenance и ограничениями до их включения.

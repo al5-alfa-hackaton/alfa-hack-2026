@@ -15,7 +15,7 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
-  Projects/backend:
+  projects/backend:
     dependencies:
       '@fastify/cors':
         specifier: 11.3.1
@@ -46,7 +46,7 @@ importers:
         specifier: 5.0.5
         version: 5.0.5(@types/node@26.6.5)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
-  Projects/frontend:
+  projects/frontend:
     dependencies:
       '@base-ui/react':
         specifier: ^1.9.0

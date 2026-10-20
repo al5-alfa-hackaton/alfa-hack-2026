@@ -15,11 +15,11 @@
 
 ## Принятые решения
 
-- pnpm workspaces; приложения в `Projects/frontend` и `Projects/backend`.
+- pnpm workspaces; приложения в `projects/frontend` и `projects/backend`.
 - TypeScript, React, **TanStack Start** (так интерпретировано название «Tenstec Start»), shadcn/ui и Tailwind CSS.
 - Fastify, Drizzle ORM, PostgreSQL. Предметная схема сейчас пустая.
 - Для долгих агентных запусков рекомендуются BullMQ + Redis и отдельный процесс воркера в пакете backend; сейчас не реализованы.
-- `Research/` зарезервирована под исследование skills, AGENTS.md/agent-команд и MCP-инструментов, сейчас пустая.
+- `research/` зарезервирована под исследование skills, AGENTS.md/agent-команд и MCP-инструментов, сейчас пустая.
 
 ## Ограничение выбора harness
 
