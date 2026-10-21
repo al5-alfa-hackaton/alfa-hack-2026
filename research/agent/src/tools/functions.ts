@@ -99,6 +99,7 @@ export function companyProfile(ctx: DataContext, companyId: string) {
       usesAlfaDebtProducts: debtProducts,
       hasForeignTrade: c.customs.hasRecords,
       foreignTradeCountries: c.customs.countries,
+      foreignTradeDirection: c.customs.hasRecords ? 'unknown: ФТС дает только страны, не экспорт или импорт и не валюту' : null,
       groupSize: group?.companies ?? 1,
       linkedPersons: ctx.companies.personsByCompany.get(c.id)?.length ?? 0,
     },
