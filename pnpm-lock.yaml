@@ -166,6 +166,9 @@ importers:
       fast-xml-parser:
         specifier: 5.11.2
         version: 5.11.2
+      snowball-stemmers:
+        specifier: 0.6.0
+        version: 0.6.0
       unpdf:
         specifier: 1.8.1
         version: 1.8.1
@@ -3985,6 +3988,9 @@ packages:
   smart-buffer@4.2.0:
     resolution: {integrity: sha512-94hK0Hh8rPqQl2xXc3HsaBoOXKV20MToPkcXvwbISWLEs+64sBq5kFgn2kJDHb1Pry9yrP0dxrCI9RRci7RXKg==}
     engines: {node: '>= 6.0.0', npm: '>= 3.0.0'}
+
+  snowball-stemmers@0.6.0:
+    resolution: {integrity: sha512-47VTJvsZzEme3VxhbUFc9wR0CX8fYKNMgL7AiBdJcHUrwbmN7htFroeX+8ESIAaoNgwEgwI2wnv1HIcqQqAdcA==}
 
   socks@2.8.10:
     resolution: {integrity: sha512-e0VyvkVTwVYViNovRkZ9aodhxVlyoMn7eJhVUPxZ+eK9P/7CBkxvvsBOHqFPEH416726W8tLXXXjKwqgTErrCQ==}
@@ -7971,6 +7977,8 @@ snapshots:
   sisteransi@1.0.5: {}
 
   smart-buffer@4.2.0: {}
+
+  snowball-stemmers@0.6.0: {}
 
   socks@2.8.10:
     dependencies:

@@ -45,9 +45,20 @@ flowchart LR
 
 **при первой настройке**:
 
+Создать `research/agent/.env` (в git не попадает):
+
+```sh
+LLM_BASE_URL=<адрес шлюза организаторов>
+LLM_API_KEY=<ключ>
+LLM_MODEL_AGENT=deepseek/deepseek-v4.1-flash
+LLM_MODEL_VISION=qwen/qwen3.6-35b-a3b
+LLM_REASONING_EFFORT=none
+```
+
+Необязательные: `AGENT_MAX_STEPS` (12), `AGENT_MAX_TOOL_CALLS` (20), `LLM_MAX_OUTPUT_TOKENS` (2000), `LLM_TIMEOUT_MS` (120000), `DATA_DIR` (`<repo>/data`).
+
 ```sh
 pnpm install
-cp .env.example .env
 pnpm ingest                  # скачивает новости (RSS), вынимает из PDF картинки страниц
 pnpm bank:ocr                # распознаёт картинки в текст: ~8 ₽, ~20 мин, повторный запуск продолжает с места обрыва
 pnpm ingest --bank           # режет распознанный текст на фрагменты для поиска

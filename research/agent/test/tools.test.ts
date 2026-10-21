@@ -37,6 +37,7 @@ describe('company tools', () => {
 describe('search and evidence', () => {
   it('matches Russian word forms', () => {
     expect(tokenize('ключевой ставки')[1]).toBe(tokenize('ставка')[0])
+    expect(tokenize('цены нефти')).toEqual(tokenize('цена нефть'))
     expect(newsSearch(ctx, 'ключевой ставки').results[0]?.documentId).toBe('news_rate')
     expect(bankSearch(ctx, 'заемное финансирование').results[0]?.page).toBe(1)
   })
