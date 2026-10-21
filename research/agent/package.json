@@ -9,6 +9,7 @@
     "bank:ocr": "tsx --env-file-if-exists=.env src/cli/bank-ocr.ts",
     "ocr:compare": "tsx --env-file-if-exists=.env src/cli/ocr-compare.ts",
     "llm:smoke": "tsx --env-file-if-exists=.env src/cli/llm-smoke.ts",
+    "agent:compare": "tsx --env-file-if-exists=.env src/cli/agent-compare.ts",
     "agent": "tsx --env-file-if-exists=.env src/cli/run-agent.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
