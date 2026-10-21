@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { AIMessage, HumanMessage } from '@langchain/core/messages'
 import { buildAgentGraph, textOf } from '../agent/graph.js'
 import { buildTaskPrompt, PROMPT_VERSION } from '../agent/prompts.js'
+import { locateSources } from '../agent/sources.js'
 import { dataPaths, loadConfig } from '../config.js'
 import { loadDataContext } from '../data/context.js'
 import { costOf, createChatModel } from '../llm.js'
@@ -34,6 +35,7 @@ const aiMessages = result.messages.filter((m): m is AIMessage => m instanceof AI
 const answer = textOf(aiMessages.at(-1)!)
 const tokens = aiMessages.reduce((s, m) => s + (m.usage_metadata?.total_tokens ?? 0), 0)
 const cost = aiMessages.reduce((s, m) => s + costOf(m), 0)
+const sources = locateSources(answer, ctx, dataPaths(config))
 
 const run = {
   companyId,
@@ -48,6 +50,7 @@ const run = {
   stopReason: result.stopReason,
   toolCalls: audit,
   answer,
+  sources,
 }
 
 console.log('===Вызовы инструментов===')
@@ -55,6 +58,10 @@ for (const c of audit) console.log(`${c.ok ? '✓' : '✗'} ${c.tool} ${JSON.str
 console.log(`\n===Ответ (${modelId}, ${run.durationMs} мс, шагов ${run.steps}, токенов ${tokens}, стоимость ${cost.toFixed(4)})===`)
 if (result.stopReason === 'limit') console.log('(лимит шагов исчерпан, ответ по собранным данным)')
 console.log(answer || 'Модель вернула пустой ответ')
+if (sources.length) {
+  console.log('\n===Где посмотреть источники===')
+  for (const s of sources) console.log(`${s.label}\n${s.where.map((w) => `   ${w}`).join('\n')}`)
+}
 
 const dir = `${dataPaths(config).processed}/runs`
 await mkdir(dir, { recursive: true })
