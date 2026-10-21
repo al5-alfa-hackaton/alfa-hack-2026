@@ -28,13 +28,13 @@ function UIKit() {
       <section className="max-w-2xl space-y-4">
         <Badge variant="insight"><Sparkles /> UI-kit · Альфа</Badge>
         <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">Ясность в каждом решении.</h1>
-        <p className="text-lg leading-relaxed text-muted-foreground">Красный направляет к действию. Зелёный отмечает результат. Фиолетовый выделяет аналитические выводы.</p>
+        <p className="text-lg leading-relaxed text-muted-foreground">Красный направляет к действию. Лаймовый отмечает результат. Фиолетовый выделяет аналитические выводы.</p>
       </section>
       <section aria-label="Палитра" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           ['Красный', 'Основные действия', 'bg-brand'],
           ['Белый', 'Чистые поверхности', 'bg-white border'],
-          ['Зелёный', 'Успех и возможности', 'bg-success'],
+          ['Лаймовый', 'Успех и возможности', 'bg-success'],
           ['Фиолетовый', 'AI и аналитика', 'bg-insight'],
         ].map(([name, role, color]) => <Card key={name} className="gap-3 py-4"><CardContent className="space-y-3 px-4"><div className={`h-16 rounded-lg ${color}`} /><div><p className="font-medium">{name}</p><p className="text-xs text-muted-foreground">{role}</p></div></CardContent></Card>)}
       </section>
@@ -68,7 +68,7 @@ function UIKit() {
       <section aria-label="Пример аналитики">
         <Tabs defaultValue="insight">
           <TabsList><TabsTrigger value="insight">AI-аналитика</TabsTrigger><TabsTrigger value="sources">Источники</TabsTrigger></TabsList>
-          <TabsContent value="insight"><Card className="border-insight/20 bg-insight-muted"><CardHeader><div className="mb-2"><Badge variant="insight"><Sparkles /> Пример интерпретации</Badge></div><CardTitle>От события — к его влиянию на бизнес</CardTitle><CardDescription className="text-insight-muted-foreground">Здесь появится персонализированный вывод с объяснением рисков, возможностей и связью с первоисточником.</CardDescription></CardHeader></Card></TabsContent>
+          <TabsContent value="insight"><Card className="border-insight bg-insight text-insight-foreground"><CardHeader><div className="mb-2"><Badge variant="insight"><Sparkles /> Пример интерпретации</Badge></div><CardTitle>От события — к его влиянию на бизнес</CardTitle><CardDescription className="text-insight-muted-foreground">Здесь появится персонализированный вывод с объяснением рисков, возможностей и связью с первоисточником.</CardDescription></CardHeader></Card></TabsContent>
           <TabsContent value="sources"><Card><CardContent className="pt-6 text-sm text-muted-foreground">В рабочем продукте здесь будут источники и материалы, на которых основан вывод. Это демонстрация компонентов.</CardContent></Card></TabsContent>
         </Tabs>
       </section>
