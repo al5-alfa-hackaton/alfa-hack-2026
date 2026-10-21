@@ -10,7 +10,7 @@ export const Route = createRootRoute({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'Новостная аналитика — шаблон' },
+      { title: 'Альфа Бизнес — Новостная аналитика' },
     ],
     links: [{ rel: 'stylesheet', href: styles }],
   }),
