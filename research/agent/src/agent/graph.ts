@@ -1,0 +1,64 @@
+import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from '@langchain/core/messages'
+import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
+import { Annotation, END, messagesStateReducer, START, StateGraph } from '@langchain/langgraph'
+import { ToolNode } from '@langchain/langgraph/prebuilt'
+import type { DataContext } from '../data/context.js'
+import { createTools, type ToolCallRecord } from '../tools/index.js'
+import { AGENT_SYSTEM_PROMPT, LIMIT_REACHED_PROMPT } from './prompts.js'
+
+export type AgentLimits = { maxSteps: number; maxToolCalls: number }
+
+const State = Annotation.Root({
+  messages: Annotation<BaseMessage[]>({ reducer: messagesStateReducer, default: () => [] }),
+  steps: Annotation<number>({ reducer: (_, b) => b, default: () => 0 }),
+  toolCalls: Annotation<number>({ reducer: (_, b) => b, default: () => 0 }),
+  stopReason: Annotation<'answered' | 'limit' | null>({ reducer: (_, b) => b, default: () => null }),
+})
+
+type AgentState = typeof State.State
+
+export function textOf(message: BaseMessage): string {
+  const { content } = message
+  if (typeof content === 'string') return content
+  return content.map((part) => ('text' in part && typeof part.text === 'string' ? part.text : '')).join('')
+}
+
+export function buildAgentGraph(opts: { ctx: DataContext; model: BaseChatModel; limits: AgentLimits; audit?: ToolCallRecord[] }) {
+  const { ctx, model, limits } = opts
+  const tools = createTools(ctx, opts.audit)
+  if (!model.bindTools) throw new Error('Модель не поддерживает tool calling')
+  const agentModel = model.bindTools(tools)
+
+  async function agent(state: AgentState) {
+    const response = await agentModel.invoke([new SystemMessage(AGENT_SYSTEM_PROMPT), ...state.messages])
+    const calls = response instanceof AIMessage ? (response.tool_calls?.length ?? 0) : 0
+    return { messages: [response], steps: state.steps + 1, toolCalls: state.toolCalls + calls }
+  }
+
+  async function limit(state: AgentState) {
+    const last = state.messages.at(-1)
+    const history = last instanceof AIMessage && last.tool_calls?.length ? state.messages.slice(0, -1) : state.messages
+    const response = await model.invoke([new SystemMessage(AGENT_SYSTEM_PROMPT), ...history, new HumanMessage(LIMIT_REACHED_PROMPT)])
+    return { messages: [response], stopReason: 'limit' as const }
+  }
+
+  function route(state: AgentState) {
+    const last = state.messages.at(-1)
+    const wantsTools = last instanceof AIMessage && Boolean(last.tool_calls?.length)
+    if (!wantsTools) return 'answered'
+    if (state.steps >= limits.maxSteps || state.toolCalls > limits.maxToolCalls) return 'limit'
+    return 'tools'
+  }
+
+  return new StateGraph(State)
+    .addNode('agent', agent)
+    .addNode('tools', new ToolNode(tools))
+    .addNode('answered', () => ({ stopReason: 'answered' as const }))
+    .addNode('limit', limit)
+    .addEdge(START, 'agent')
+    .addConditionalEdges('agent', route, ['tools', 'answered', 'limit'])
+    .addEdge('tools', 'agent')
+    .addEdge('answered', END)
+    .addEdge('limit', END)
+    .compile()
+}
