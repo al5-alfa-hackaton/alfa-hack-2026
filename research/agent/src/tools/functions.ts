@@ -1,8 +1,9 @@
-import type { Company, PaymentEdge } from '../data/companies.js'
+import { isActiveClient, type Company, type PaymentEdge } from '../data/companies.js'
 import type { DataContext } from '../data/context.js'
 import { normalizeForMatch } from '../data/text.js'
 
 const LARGE_BUSINESS_REVENUE = 15e9
+const MAX_UNKNOWN_PROFILE_SHARE = 0.5
 
 export class ToolError extends Error {}
 
@@ -18,20 +19,58 @@ function scaleOf(revenue: number | null): string {
   return 'small'
 }
 
+function pickRow(rows: Company[]): Company {
+  return [...rows].sort((a, b) => (b.revenue ?? -1) - (a.revenue ?? -1))[0]!
+}
+
+function findCompany(ctx: DataContext, companyId: string): Company | undefined {
+  const rows = ctx.companies.companies.get(companyId)
+  return rows?.length ? pickRow(rows) : undefined
+}
+
 function primaryRow(ctx: DataContext, companyId: string): { company: Company; duplicates: number } {
   const rows = ctx.companies.companies.get(companyId)
   if (!rows?.length) throw new ToolError(`Company ${companyId} not found`)
-  const company = [...rows].sort((a, b) => (b.revenue ?? -1) - (a.revenue ?? -1))[0]!
-  return { company, duplicates: rows.length - 1 }
+  return { company: pickRow(rows), duplicates: rows.length - 1 }
 }
 
-function briefCompany(c: Company) {
+type GroupRevenue = { revenue: number | null; companies: number; companiesWithoutRevenue: number }
+
+const groupRevenueCache = new WeakMap<DataContext, Map<string, GroupRevenue>>()
+
+function groupRevenueOf(ctx: DataContext, groupId: string): GroupRevenue {
+  let cache = groupRevenueCache.get(ctx)
+  if (!cache) groupRevenueCache.set(ctx, (cache = new Map()))
+  const cached = cache.get(groupId)
+  if (cached) return cached
+  const ids = ctx.companies.groups.get(groupId) ?? []
+  let revenue = 0
+  let missing = 0
+  for (const id of ids) {
+    const r = findCompany(ctx, id)?.revenue ?? null
+    if (r === null) missing++
+    else revenue += r
+  }
+  const result = { revenue: missing === ids.length ? null : revenue, companies: ids.length, companiesWithoutRevenue: missing }
+  cache.set(groupId, result)
+  return result
+}
+
+function scaleFor(ctx: DataContext, c: Company) {
+  const group = c.groupId ? groupRevenueOf(ctx, c.groupId) : null
+  const basis = group?.revenue != null ? 'group' : 'company'
+  return { scale: scaleOf(basis === 'group' ? group!.revenue : c.revenue), scaleBasis: basis, group }
+}
+
+function briefCompany(ctx: DataContext, c: Company) {
+  const { scale, scaleBasis } = scaleFor(ctx, c)
   return {
     id: c.id,
     okved: c.okvedCode,
     okvedName: c.okvedName,
     revenue: c.revenue,
-    scale: scaleOf(c.revenue),
+    scale,
+    scaleBasis,
     region: c.region,
   }
 }
@@ -39,6 +78,8 @@ function briefCompany(c: Company) {
 export function companyProfile(ctx: DataContext, companyId: string) {
   const { company: c, duplicates } = primaryRow(ctx, companyId)
   const debtProducts = (['loans', 'leasing', 'guarantees', 'factoring'] as const).filter((p) => c.products[p])
+  const { scale, scaleBasis, group } = scaleFor(ctx, c)
+  const scaleRevenue = scaleBasis === 'group' ? group!.revenue : c.revenue
   const gaps: string[] = []
   if (c.revenue === null) gaps.push('revenue')
   if (!c.developmentStage) gaps.push('developmentStage')
@@ -48,13 +89,17 @@ export function companyProfile(ctx: DataContext, companyId: string) {
   return {
     company: c,
     derived: {
-      scale: scaleOf(c.revenue),
-      isLargeBusinessByCase: c.revenue === null ? null : c.revenue >= LARGE_BUSINESS_REVENUE,
+      isActiveClient: isActiveClient(c),
+      scale,
+      scaleBasis,
+      groupRevenue: group?.revenue ?? null,
+      groupCompaniesWithoutRevenue: group?.companiesWithoutRevenue ?? null,
+      revenueAbove15bn: scaleRevenue === null ? null : scaleRevenue >= LARGE_BUSINESS_REVENUE,
       okvedDivision: okvedDivision(c.okvedCode),
       usesAlfaDebtProducts: debtProducts,
       hasForeignTrade: c.customs.hasRecords,
       foreignTradeCountries: c.customs.countries,
-      groupSize: c.groupId ? (ctx.companies.groups.get(c.groupId)?.length ?? 1) : 1,
+      groupSize: group?.companies ?? 1,
       linkedPersons: ctx.companies.personsByCompany.get(c.id)?.length ?? 0,
     },
     dataQuality: {
@@ -62,7 +107,9 @@ export function companyProfile(ctx: DataContext, companyId: string) {
       duplicateRowsForId: duplicates,
       notes: [
         'Банковские продукты отражают только отношения с Альфа-Банком; продукты других банков неизвестны.',
-        'Единица REVENUE_COMPANY не указана в данных; предполагаются рубли.',
+        'Выручка — за 2025 год, в рублях. Значение 1000 — техническая заглушка, считается отсутствующим.',
+        'Масштаб оценен по суммарной выручке группы (scaleBasis = group), если она известна; это оценка, а не сегмент банка: группы с выручкой выше 15 млрд встречаются и в среднем бизнесе.',
+        ...(group?.companiesWithoutRevenue ? ['Выручка группы занижена: у части участников выручка неизвестна.'] : []),
       ],
     },
   }
@@ -73,7 +120,7 @@ export function companyGroup(ctx: DataContext, companyId: string, limit = 20) {
   const memberIds = company.groupId ? (ctx.companies.groups.get(company.groupId) ?? []) : []
   const members = memberIds
     .filter((id) => id !== companyId)
-    .map((id) => ctx.companies.companies.get(id)?.[0])
+    .map((id) => findCompany(ctx, id))
     .filter((c): c is Company => Boolean(c))
     .sort((a, b) => (b.revenue ?? 0) - (a.revenue ?? 0))
 
@@ -85,11 +132,11 @@ export function companyGroup(ctx: DataContext, companyId: string, limit = 20) {
     }
   }
   const affiliated = [...viaPersons].slice(0, limit).map(([id, persons]) => {
-    const c = ctx.companies.companies.get(id)?.[0]
-    return { ...(c ? briefCompany(c) : { id, profileKnown: false }), sharedPersons: persons.length }
+    const c = findCompany(ctx, id)
+    return { ...(c ? briefCompany(ctx, c) : { id, profileKnown: false }), sharedPersons: persons.length }
   })
 
-  const groupRevenue = [company, ...members].reduce((s, c) => s + (c.revenue ?? 0), 0)
+  const group = company.groupId ? groupRevenueOf(ctx, company.groupId) : null
   const divisions = new Map<string, number>()
   for (const c of [company, ...members]) {
     const d = okvedDivision(c.okvedCode)
@@ -99,9 +146,10 @@ export function companyGroup(ctx: DataContext, companyId: string, limit = 20) {
   return {
     groupId: company.groupId,
     groupSize: memberIds.length,
-    groupRevenue,
+    groupRevenue: group?.revenue ?? company.revenue,
+    groupCompaniesWithoutRevenue: group?.companiesWithoutRevenue ?? (company.revenue === null ? 1 : 0),
     groupOkvedDivisions: [...divisions].sort((a, b) => b[1] - a[1]).map(([okvedDivision, companies]) => ({ okvedDivision, companies })),
-    members: members.slice(0, limit).map(briefCompany),
+    members: members.slice(0, limit).map((c) => briefCompany(ctx, c)),
     affiliatedViaPersons: affiliated,
   }
 }
@@ -121,7 +169,7 @@ function summarizeEdges(ctx: DataContext, companyId: string, allEdges: PaymentEd
   const industries = new Map<string, { name: string | null; amount: number }>()
   let unknownAmount = 0
   for (const [id, agg] of sorted) {
-    const c = ctx.companies.companies.get(id)?.[0]
+    const c = findCompany(ctx, id)
     const d = okvedDivision(c?.okvedCode ?? null)
     if (!c || !d) {
       unknownAmount += agg.amount
@@ -143,8 +191,8 @@ function summarizeEdges(ctx: DataContext, companyId: string, allEdges: PaymentEd
       .slice(0, 8)
       .map(([division, v]) => ({ okvedDivision: division, exampleName: v.name, share: share(v.amount) })),
     top: sorted.slice(0, limit).map(([id, agg]) => {
-      const c = ctx.companies.companies.get(id)?.[0]
-      return { ...(c ? briefCompany(c) : { id, profileKnown: false }), amount: agg.amount, payments: agg.count, share: share(agg.amount) }
+      const c = findCompany(ctx, id)
+      return { ...(c ? briefCompany(ctx, c) : { id, profileKnown: false }), amount: agg.amount, payments: agg.count, share: share(agg.amount) }
     }),
   }
 }
@@ -155,12 +203,22 @@ export function companyCounterparties(
   direction: 'suppliers' | 'customers' | 'both' = 'both',
   limit = 10,
 ) {
-  primaryRow(ctx, companyId)
+  const { company } = primaryRow(ctx, companyId)
   const result: Record<string, unknown> = {
-    note: 'Платежи без указания периода и валюты. Это сигнал связей, а не доказательство зависимости бизнеса.',
+    note: 'Платежи в рублях с 1 января текущего года и только те, что видит Альфа-Банк. Это сигнал связей, а не доказательство зависимости бизнеса.',
   }
-  if (direction !== 'customers') result.suppliers = summarizeEdges(ctx, companyId, ctx.companies.outgoing.get(companyId) ?? [], limit)
-  if (direction !== 'suppliers') result.customers = summarizeEdges(ctx, companyId, ctx.companies.incoming.get(companyId) ?? [], limit)
+  const withCoverage = (summary: ReturnType<typeof summarizeEdges>) => {
+    const shareOfRevenue = company.revenue ? Math.round((summary.totalAmount / company.revenue) * 1000) / 1000 : null
+    const industriesReliable = summary.totalAmount > 0 && summary.unknownProfileShare <= MAX_UNKNOWN_PROFILE_SHARE
+    return {
+      ...summary,
+      shareOfRevenue,
+      industriesReliable,
+      ...(industriesReliable ? {} : { warning: 'Отрасли контрагентов известны для малой части объема — по ним нельзя судить, кто покупатели или поставщики компании.' }),
+    }
+  }
+  if (direction !== 'customers') result.suppliers = withCoverage(summarizeEdges(ctx, companyId, ctx.companies.outgoing.get(companyId) ?? [], limit))
+  if (direction !== 'suppliers') result.customers = withCoverage(summarizeEdges(ctx, companyId, ctx.companies.incoming.get(companyId) ?? [], limit))
   return result
 }
 

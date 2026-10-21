@@ -15,7 +15,21 @@ describe('company tools', () => {
     expect(derived.scale).toBe('large')
     expect(derived.foreignTradeCountries).toEqual(['КИТАЙ', 'ТУРЦИЯ'])
     expect(companyProfile(ctx, 'U_3').company.revenue).toBeNull()
-    expect(companyProfile(ctx, 'U_3').derived.isLargeBusinessByCase).toBeNull()
+    expect(companyProfile(ctx, 'U_3').derived.revenueAbove15bn).toBeNull()
+  })
+
+  it('treats revenue 1000 as a placeholder', () => {
+    const { company, dataQuality } = companyProfile(ctx, 'U_4')
+    expect(company.revenue).toBeNull()
+    expect(dataQuality.missingFields).toContain('revenue')
+  })
+
+  it('derives scale from group revenue and flags non-clients', () => {
+    const member = companyProfile(ctx, 'U_2')
+    expect(member.company.revenue).toBe(900000000)
+    expect(member.derived).toMatchObject({ scale: 'large', scaleBasis: 'group', groupRevenue: 30900000000, isActiveClient: false })
+    expect(companyProfile(ctx, 'U_3').derived).toMatchObject({ scale: 'unknown', scaleBasis: 'company', groupRevenue: null })
+    expect(companyProfile(ctx, 'U_1').derived.isActiveClient).toBe(true)
   })
 
   it('finds group members and companies sharing a linked person', () => {

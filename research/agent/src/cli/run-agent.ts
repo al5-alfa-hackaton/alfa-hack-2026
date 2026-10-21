@@ -4,6 +4,7 @@ import { buildAgentGraph, textOf } from '../agent/graph.js'
 import { buildTaskPrompt, PROMPT_VERSION } from '../agent/prompts.js'
 import { locateSources } from '../agent/sources.js'
 import { dataPaths, loadConfig } from '../config.js'
+import { isActiveClient } from '../data/companies.js'
 import { loadDataContext } from '../data/context.js'
 import { costOf, createChatModel } from '../llm.js'
 import type { ToolCallRecord } from '../tools/index.js'
@@ -15,7 +16,9 @@ const config = loadConfig()
 const modelId = modelArg ?? config.LLM_MODEL_AGENT
 if (!modelId) throw new Error('Задайте LLM_MODEL_AGENT в .env или передайте modelId третьим аргументом')
 const ctx = await loadDataContext(config)
-if (!ctx.companies.companies.has(companyId)) throw new Error(`Компания ${companyId} не найдена`)
+const rows = ctx.companies.companies.get(companyId)
+if (!rows) throw new Error(`Компания ${companyId} не найдена`)
+if (!rows.some(isActiveClient)) throw new Error(`Компания ${companyId} — не действующий клиент (${rows[0]!.clientType ?? 'тип не указан'}); сервис рассчитан на CLIENT`)
 
 const audit: ToolCallRecord[] = []
 const graph = buildAgentGraph({

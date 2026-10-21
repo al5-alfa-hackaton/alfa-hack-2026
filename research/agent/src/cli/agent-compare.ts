@@ -4,6 +4,7 @@ import { buildAgentGraph, textOf } from '../agent/graph.js'
 import { buildTaskPrompt, PROMPT_VERSION } from '../agent/prompts.js'
 import { locateSources } from '../agent/sources.js'
 import { dataPaths, loadConfig } from '../config.js'
+import { isActiveClient } from '../data/companies.js'
 import { loadDataContext } from '../data/context.js'
 import { costOf, createChatModel } from '../llm.js'
 import type { ToolCallRecord } from '../tools/index.js'
@@ -12,7 +13,7 @@ const CASES = [
   { companyId: 'U_9250', question: 'Доходности ОФЗ выросли после заседания ЦБ 11 сентября. Как это влияет на стоимость финансирования компании?' },
   { companyId: 'U_1595', question: 'Банк ожидает охлаждения потребительского спроса. Что это значит для компании?' },
   { companyId: 'U_57706', question: 'Цены на бензин продолжают расти, инфляция ускорилась. Как это влияет на компанию?' },
-  { companyId: 'U_408046', question: 'Как рост льготного кредитования и кредитов застройщикам влияет на компанию?' },
+  { companyId: 'U_68157', question: 'Как рост льготного кредитования и кредитов застройщикам влияет на компанию?' },
   { companyId: 'U_3263', question: 'Рынок труда остается напряженным, зарплаты растут. Что это значит для компании?' },
 ]
 
@@ -21,6 +22,8 @@ if (!models.length) throw new Error('Использование: pnpm agent:comp
 
 const config = loadConfig()
 const ctx = await loadDataContext(config)
+const notClients = CASES.filter((c) => !ctx.companies.companies.get(c.companyId)?.some(isActiveClient))
+if (notClients.length) throw new Error(`Не действующие клиенты: ${notClients.map((c) => c.companyId).join(', ')}`)
 const date = new Date().toISOString().slice(0, 10)
 const answersDir = `${dataPaths(config).processed}/runs/agent-compare-${date}`
 await mkdir(answersDir, { recursive: true })

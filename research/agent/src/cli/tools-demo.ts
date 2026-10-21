@@ -1,4 +1,5 @@
 import { loadConfig } from '../config.js'
+import { isActiveClient } from '../data/companies.js'
 import { loadDataContext } from '../data/context.js'
 import { bankSearch, companyCounterparties, companyGroup, companyProfile, evidenceVerify, newsSearch } from '../tools/functions.js'
 
@@ -11,7 +12,7 @@ const companyId =
   companyArg ??
   [...ctx.companies.companies.values()]
     .map((rows) => rows[0]!)
-    .filter((c) => c.products.loans && c.customs.hasRecords)
+    .filter((c) => isActiveClient(c) && c.products.loans && c.customs.hasRecords)
     .sort((a, b) => (b.revenue ?? 0) - (a.revenue ?? 0))[0]!.id
 const query = queryArg ?? 'ключевая ставка'
 

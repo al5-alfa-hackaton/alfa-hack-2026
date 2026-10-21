@@ -27,6 +27,17 @@ export type Company = {
   region: string | null
 }
 
+export const REVENUE_PLACEHOLDER = 1000
+
+export function isActiveClient(company: Company): boolean {
+  return company.clientType === 'CLIENT'
+}
+
+function parseRevenue(value: string | undefined): number | null {
+  const revenue = parseNumber(value)
+  return revenue === REVENUE_PLACEHOLDER ? null : revenue
+}
+
 export type PaymentEdge = { counterpartyId: string; amount: number; count: number }
 
 export type CompanyStore = {
@@ -67,7 +78,7 @@ function toCompany(r: Record<string, string>): Company {
       factoring: parseFlag(r.FACTORING_MARK),
     },
     customs: { hasRecords: parseFlag(r.FTS_FLAG), countries },
-    revenue: parseNumber(r.REVENUE_COMPANY),
+    revenue: parseRevenue(r.REVENUE_COMPANY),
     city: emptyToNull(r.CITY),
     region: emptyToNull(r.REGION),
   }
@@ -95,6 +106,7 @@ export async function loadCompanyStore(files: CompanyFiles): Promise<CompanyStor
     push(store.companies, company.id, company)
     if (company.groupId) push(store.groups, company.groupId, company.id)
   }
+  for (const [groupId, ids] of store.groups) store.groups.set(groupId, [...new Set(ids)])
 
   for await (const r of readCsv(files.personLinks)) {
     const person = r.SYNTHETIC_F
