@@ -1,24 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { createFileRoute } from "@tanstack/react-router";
+import { DemoApp } from "@/features/demo/app";
 
-export const Route = createFileRoute('/')({ component: Home })
-
-function Home() {
-  return (
-    <main className="mx-auto flex min-h-svh max-w-3xl items-center px-6 py-16">
-      <Card className="w-full">
-        <CardHeader>
-          <Badge variant="secondary" className="mb-3">Шаблон проекта</Badge>
-          <CardTitle className="text-2xl">Новостная аналитика</CardTitle>
-          <CardDescription>React · TanStack Start · shadcn/ui</CardDescription>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Основа для будущего сервиса персонализированных бизнес-инсайтов.
-          <div className="mt-6"><Button asChild><Link to="/ui-kit">Открыть UI-kit</Link></Button></div>
-        </CardContent>
-      </Card>
-    </main>
-  )
-}
+export const Route = createFileRoute("/")({ component: DemoApp });
