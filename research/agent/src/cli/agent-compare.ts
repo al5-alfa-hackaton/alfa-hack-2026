@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { AIMessage, HumanMessage } from '@langchain/core/messages'
 import { buildAgentGraph, textOf } from '../agent/graph.js'
 import { buildTaskPrompt, PROMPT_VERSION } from '../agent/prompts.js'
+import { locateSources } from '../agent/sources.js'
 import { dataPaths, loadConfig } from '../config.js'
 import { loadDataContext } from '../data/context.js'
 import { costOf, createChatModel } from '../llm.js'
@@ -20,7 +21,6 @@ if (!models.length) throw new Error('Использование: pnpm agent:comp
 
 const config = loadConfig()
 const ctx = await loadDataContext(config)
-const knownIds = new Set([...ctx.bank.documents.map((d) => d.id), ...ctx.news.map((n) => n.id)])
 const date = new Date().toISOString().slice(0, 10)
 const answersDir = `${dataPaths(config).processed}/runs/agent-compare-${date}`
 await mkdir(answersDir, { recursive: true })
@@ -33,9 +33,9 @@ type Row = {
   toolCalls: number
   tools: string[]
   bankHits: number
-  citedBank: number
-  citedNews: number
-  unknownCitations: string[]
+  sourcesBank: number
+  sourcesNews: number
+  sourcesUnmatched: string[]
   ms: number
   tokens: number
   cost: number
@@ -60,7 +60,9 @@ for (const c of CASES) {
       )
       const ai = result.messages.filter((m): m is AIMessage => m instanceof AIMessage)
       const answer = textOf(ai.at(-1)!)
-      const cited = [...new Set(answer.match(/\b(?:bank|news)_[0-9a-f]{12}\b/g) ?? [])]
+      const sources = locateSources(answer, ctx, dataPaths(config))
+      const isBank = (where: string[]) => where[0]?.endsWith('.pdf') ?? false
+      const isNews = (where: string[]) => where[0]?.startsWith('http') ?? false
       const bankResults = result.messages.filter((m) => m.getType() === 'tool' && m.name === 'bank_search')
       const row: Row = {
         model: modelId,
@@ -70,9 +72,9 @@ for (const c of CASES) {
         toolCalls: audit.length,
         tools: [...new Set(audit.map((a) => a.tool))],
         bankHits: bankResults.reduce((s, m) => s + ((JSON.parse(String(m.content)).results?.length as number) ?? 0), 0),
-        citedBank: cited.filter((id) => id.startsWith('bank_')).length,
-        citedNews: cited.filter((id) => id.startsWith('news_')).length,
-        unknownCitations: cited.filter((id) => !knownIds.has(id)),
+        sourcesBank: sources.filter((x) => isBank(x.where)).length,
+        sourcesNews: sources.filter((x) => isNews(x.where)).length,
+        sourcesUnmatched: sources.filter((x) => !isBank(x.where) && !isNews(x.where)).map((x) => x.label),
         ms: Date.now() - started,
         tokens: ai.reduce((s, m) => s + (m.usage_metadata?.total_tokens ?? 0), 0),
         cost: ai.reduce((s, m) => s + costOf(m), 0),
@@ -80,23 +82,23 @@ for (const c of CASES) {
       rows.push(row)
       await writeFile(
         `${answersDir}/${c.companyId}_${modelId.replace(/\//g, '_')}.json`,
-        JSON.stringify({ ...row, question: c.question, promptVersion: PROMPT_VERSION, toolTrace: audit, answer }, null, 2),
+        JSON.stringify({ ...row, question: c.question, promptVersion: PROMPT_VERSION, toolTrace: audit, answer, sources }, null, 2),
       )
     } catch (error) {
-      rows.push({ model: modelId, companyId: c.companyId, stopReason: null, steps: 0, toolCalls: 0, tools: [], bankHits: 0, citedBank: 0, citedNews: 0, unknownCitations: [], ms: Date.now() - started, tokens: 0, cost: 0, error: (error as Error).message.slice(0, 120) })
+      rows.push({ model: modelId, companyId: c.companyId, stopReason: null, steps: 0, toolCalls: 0, tools: [], bankHits: 0, sourcesBank: 0, sourcesNews: 0, sourcesUnmatched: [], ms: Date.now() - started, tokens: 0, cost: 0, error: (error as Error).message.slice(0, 120) })
     }
     const r = rows.at(-1)!
-    console.log(`${r.companyId} ${r.model}: ${r.error ?? `${r.stopReason}, шагов ${r.steps}, вызовов ${r.toolCalls}, ссылок банк/новости ${r.citedBank}/${r.citedNews}, ${(r.ms / 1000).toFixed(1)} с, ${r.cost.toFixed(3)}`}`)
+    console.log(`${r.companyId} ${r.model}: ${r.error ?? `${r.stopReason}, шагов ${r.steps}, вызовов ${r.toolCalls}, источников банк/новости ${r.sourcesBank}/${r.sourcesNews}${r.sourcesUnmatched.length ? `, не сопоставлено ${r.sourcesUnmatched.length}` : ''}, ${(r.ms / 1000).toFixed(1)} с, ${r.cost.toFixed(3)}`}`)
   }
 }
 
 const table = [
-  '| Компания | Модель | Остановка | Шагов | Вызовов | Инструменты | Фрагментов банка найдено | Ссылок на банк / новости | Несуществующие ссылки | Время, с | Токены | Стоимость |',
+  '| Компания | Модель | Остановка | Шагов | Вызовов | Инструменты | Фрагментов банка найдено | Источников: банк / новости | Не сопоставлены с документом | Время, с | Токены | Стоимость |',
   '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
   ...rows.map((r) =>
     r.error
       ? `| ${r.companyId} | ${r.model} | ❌ ${r.error.replace(/\|/g, '/')} | | | | | | | | | |`
-      : `| ${r.companyId} | ${r.model} | ${r.stopReason} | ${r.steps} | ${r.toolCalls} | ${r.tools.join(', ')} | ${r.bankHits} | ${r.citedBank} / ${r.citedNews} | ${r.unknownCitations.join(', ') || '—'} | ${(r.ms / 1000).toFixed(1)} | ${r.tokens} | ${r.cost.toFixed(3)} |`,
+      : `| ${r.companyId} | ${r.model} | ${r.stopReason} | ${r.steps} | ${r.toolCalls} | ${r.tools.join(', ')} | ${r.bankHits} | ${r.sourcesBank} / ${r.sourcesNews} | ${r.sourcesUnmatched.length ? r.sourcesUnmatched.map((l) => l.replace(/\|/g, '/')).join('; ') : '—'} | ${(r.ms / 1000).toFixed(1)} | ${r.tokens} | ${r.cost.toFixed(3)} |`,
   ),
 ]
 const totals = models.map((m) => {
