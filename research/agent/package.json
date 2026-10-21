@@ -1,0 +1,29 @@
+{
+  "name": "@alfa/research-agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ingest": "tsx --env-file-if-exists=.env src/cli/ingest.ts",
+    "tools:demo": "tsx --env-file-if-exists=.env src/cli/tools-demo.ts",
+    "bank:ocr": "tsx --env-file-if-exists=.env src/cli/bank-ocr.ts",
+    "ocr:compare": "tsx --env-file-if-exists=.env src/cli/ocr-compare.ts",
+    "llm:smoke": "tsx --env-file-if-exists=.env src/cli/llm-smoke.ts",
+    "agent": "tsx --env-file-if-exists=.env src/cli/run-agent.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@langchain/core": "1.2.13",
+    "@langchain/langgraph": "1.4.18",
+    "@langchain/openai": "1.6.0",
+    "csv-parse": "7.0.3",
+    "fast-xml-parser": "5.11.2",
+    "unpdf": "1.8.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "tsx": "4.23.15",
+    "vitest": "5.0.5"
+  }
+}
