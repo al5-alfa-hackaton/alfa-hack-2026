@@ -1,4 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -15,6 +16,7 @@ function Home() {
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
           Основа для будущего сервиса персонализированных бизнес-инсайтов.
+          <div className="mt-6"><Button asChild><Link to="/ui-kit">Открыть UI-kit</Link></Button></div>
         </CardContent>
       </Card>
     </main>
