@@ -5,7 +5,7 @@ import type { Config } from './config.js'
 export function requireLlm(config: Config) {
   const { LLM_BASE_URL, LLM_API_KEY } = config
   if (!LLM_BASE_URL || !LLM_API_KEY) {
-    throw new Error('LLM_BASE_URL и LLM_API_KEY не заданы: заполните research/agent/.env (см. README, раздел «Запуск»)')
+    throw new Error('LLM_BASE_URL и LLM_API_KEY не заданы: заполните research/agent/.env (шаблон — .env.example)')
   }
   return { baseURL: LLM_BASE_URL, apiKey: LLM_API_KEY }
 }
