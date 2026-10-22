@@ -4,11 +4,11 @@
 
 ## Реализовано
 
-- **Frontend:** `/`, `/saved`, `/company`, `/history`, `/ui-kit`; компании/роли, фильтры и поиск, разбор, источники, вопросы, оценки и замечания, экспорт, история, отмена и ошибочные состояния. Шесть синтетических событий, без предметных HTTP-запросов. Данные изолированы по компании/роли и хранятся локально.
+- **Frontend:** `/`, `/saved`, `/company`, `/history`, `/ui-kit`; компании/роли, фильтры и поиск, разбор, источники, вопросы, оценки и замечания, экспорт, история, отмена и ошибочные состояния. Шесть синтетических событий, с отдельной вкладкой «Данные сервиса» на /company. Основные demo-экраны пока локальные. Данные изолированы по компании/роли и хранятся локально.
 - **Research:** CLI-пакет `@alfa/research-agent`: CSV и связи, RSS, OCR PDF, BM25 с русским стеммингом, семь tools и собственный LangGraph-цикл. [Код и инструкции](../research/agent/README.md). Raw/processed данные вне Git. Офлайн-тесты работают на fixtures.
-- **Backend:** Fastify/Drizzle/PostgreSQL, `/health`, `/ready`. Предметных HTTP-ручек, auth, очереди и worker пока нет.
+- **Backend:** Fastify/Drizzle/PostgreSQL, `/health`, `/ready`. P0 REST/SSE, server-side bearer scope, SQL migrations, BullMQ/Redis worker, global budget reservations, LangGraph adapter и generated frontend types. [Текущее состояние и ограничения](10-backend-implementation.md).
 
-Наличие research не означает подключение frontend к LLM. Отчеты о моделях — исторические прогоны 21 октября, не новые измерения текущей сессии.
+Fixture-проверки не означают выполненный платный live-прогон. Отчеты о моделях — исторические прогоны 21 октября, не новые измерения текущей сессии.
 
 | Документ                                                   | Содержание                                 |
 | ---------------------------------------------------------- | ------------------------------------------ |
@@ -21,6 +21,8 @@
 | [07-frontend-architecture.md](07-frontend-architecture.md) | Слои по rules.md, состояние и замена моков |
 | [08-research-integration.md](08-research-integration.md)   | Аудит research и перенос в backend         |
 | [09-ui-review.md](09-ui-review.md)                         | Дизайн-решения и браузерная проверка       |
+
+[10-backend-implementation.md](10-backend-implementation.md) — исполняемый backend, модульная архитектура, генерация контрактов, auth, очередь и воспроизводимые проверки.
 
 ## Решения
 
