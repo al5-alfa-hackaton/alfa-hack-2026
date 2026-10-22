@@ -2,6 +2,7 @@ import { AIMessage, HumanMessage } from '@langchain/core/messages'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createFeedFinalizer, parseFeedAnswer, toStructuredDraft } from '../src/agent/feed-parser.js'
+import { buildTaskPrompt, clarificationAllowed } from '../src/agent/prompts.js'
 import { fixtureContext } from './helpers.js'
 
 const ctx = await fixtureContext()
@@ -76,6 +77,28 @@ describe('feed answer parser', () => {
     expect(result.events[0]).toMatchObject({ answer: 'Действовать сейчас не нужно, но стоит проверить ставку по кредитам.', kind: 'context' })
   })
 
+  it('keeps multi-line list answers and appends clarifying questions', () => {
+    const result = parseFeedAnswer(
+      `Событие news_rate
+Ответ: Проверьте в первую очередь:
+1) долю кредитов с плавающей ставкой;
+2) ближайшие погашения. Признаки: loans. Оговорка: условия договоров неизвестны.
+Уточнение: Какая доля ваших кредитов привязана к ключевой ставке?
+Факт: «Банк России сохранил ключевую ставку 14%» [news_rate]`,
+      { ctx, featureIds },
+    )
+    const event = result.events[0]!
+    expect(event.answer).toBe('Проверьте в первую очередь:\n1) долю кредитов с плавающей ставкой;\n2) ближайшие погашения.\n\nКакая доля ваших кредитов привязана к ключевой ставке?')
+    expect(event.clarification).toBe('Какая доля ваших кредитов привязана к ключевой ставке?')
+    expect(event.claims.map((c) => c.kind)).toEqual(['fact', 'ai_inference'])
+  })
+
+  it('accepts a short answer without facts for greetings', () => {
+    const result = parseFeedAnswer('Событие news_rate\nОтвет: Здравствуйте! Спросите о рисках или действиях по этому событию.', { ctx })
+    expect(result.events[0]!.answer).toBe('Здравствуйте! Спросите о рисках или действиях по этому событию.')
+    expect(result.issues).toEqual([])
+  })
+
   it('drops invented quotes, foreign events and bank positions from news', () => {
     const result = parseFeedAnswer(
       `Событие news_rate
@@ -138,8 +161,46 @@ describe('feed finalizer', () => {
     expect(() => backendDraftSchema.parse(json)).not.toThrow()
   })
 
+  it('drops a clarification when the user has just answered one', () => {
+    const text = 'Событие news_rate\nОтвет: Расходы составят около 510 млн руб. в год.\nУточнение: Какой график платежей?'
+    expect(parseFeedAnswer(text, { ctx, allowClarification: false }).events[0]!.answer).toBe('Расходы составят около 510 млн руб. в год.')
+    expect(clarificationAllowed([{ author: 'assistant', text: 'Какой объем долга?' }, { author: 'user', text: '3 млрд' }])).toBe(false)
+    expect(clarificationAllowed([{ author: 'assistant', text: 'Риски такие.' }, { author: 'user', text: 'а что делать?' }])).toBe(true)
+    expect(clarificationAllowed([{ author: 'assistant', text: 'Какой объем?' }, { author: 'user', text: '3 млрд' }, { author: 'assistant', text: 'Расходы 510 млн.' }])).toBe(false)
+    expect(buildTaskPrompt({ mode: 'question', question: '3 млрд', conversation: [{ author: 'assistant', text: 'Какой объем?' }] })).toContain('Уточнение в этом ответе: запрещено')
+  })
+
+  it('turns a plain-text reply into an answer in question mode', async () => {
+    const finalize = createFeedFinalizer({ ctx, eventIds: ['news_rate'], featureIds, mode: 'question', fallback: async () => new AIMessage('fallback') })
+    const json = JSON.parse(String((await finalize(state('Здравствуйте! Спросите о рисках или действиях по этому событию.'), {})).content))
+    expect(json.events[0]).toMatchObject({ eventId: 'news_rate', answer: 'Здравствуйте! Спросите о рисках или действиях по этому событию.' })
+  })
+
   it('falls back to the model when the answer has no recognizable blocks', async () => {
     const finalize = createFeedFinalizer({ ctx, eventIds: ['news_rate'], featureIds, fallback: async () => new AIMessage('fallback') })
     expect((await finalize(state('Свободный текст без разметки.'), {})).content).toBe('fallback')
+  })
+})
+
+describe('task prompt modes', () => {
+  it('separates the user question, card context and conversation in question mode', () => {
+    const prompt = buildTaskPrompt({
+      mode: 'question',
+      question: 'Какие риски?',
+      asOf: '2026-10-23',
+      events: [{ id: 'news_rate', title: 'Ставка', publishedAt: null }],
+      context: { eventId: 'news_rate', summary: 'Кратко' },
+      conversation: [{ author: 'assistant', text: 'Прошлый ответ' }],
+    })
+    expect(prompt).toContain('Режим: вопрос пользователя')
+    expect(prompt).toMatch(/<user_question>\nКакие риски\?\n<\/user_question>/)
+    expect(prompt).toContain('"summary":"Кратко"')
+    expect(prompt).toContain('Прошлый ответ')
+    expect(prompt).toContain('Выбранные события')
+  })
+
+  it('marks feed mode and keeps the legacy single-question prompt', () => {
+    expect(buildTaskPrompt({ mode: 'feed', question: 'Разбери события', events: [] })).toContain('Режим: лента')
+    expect(buildTaskPrompt({ question: 'Как ставка влияет на компанию?' })).not.toContain('Режим:')
   })
 })

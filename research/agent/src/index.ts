@@ -3,7 +3,7 @@ export { loadConfig as loadResearchConfig, dataPaths } from './config.js'
 export { loadDataContext, buildDataContext, type DataContext } from './data/context.js'
 export { loadCompanyStore } from './data/companies.js'
 export { buildAgentGraph, textOf } from './agent/graph.js'
-export { buildTaskPrompt, PROMPT_VERSION } from './agent/prompts.js'
+export { buildTaskPrompt, clarificationAllowed, PROMPT_VERSION, type TaskEvent } from './agent/prompts.js'
 export { createChatModel } from './llm.js'
 export {
   companyProfile,

@@ -19,6 +19,7 @@ export type ParsedEvent = {
   kind: InsightKind
   summary: string | null
   answer: string | null
+  clarification: string | null
   claims: DraftClaim[]
   risks: FeedNote[]
   opportunities: FeedNote[]
@@ -29,7 +30,7 @@ export type FeedParseResult = {
   skipped: { eventId: string; reason: string }[]
   issues: string[]
 }
-export type FeedParseOptions = { ctx?: DataContext; eventIds?: string[]; featureIds?: string[] }
+export type FeedParseOptions = { ctx?: DataContext; eventIds?: string[]; featureIds?: string[]; allowClarification?: boolean }
 
 const QUOTE_MIN = 12
 const QUOTE_MAX = 300
@@ -38,6 +39,7 @@ const MAX_TEXT = 2000
 
 const LABELS = {
   ответ: 'answer',
+  уточнение: 'clarification',
   тип: 'type',
   главное: 'main',
   факт: 'fact',
@@ -102,6 +104,7 @@ type Draft = {
   kindWord: string | null
   main: FeedNote | null
   answer: FeedNote | null
+  clarification: string | null
   facts: DraftCitation[]
   bank: DraftCitation[]
   inferences: FeedNote[]
@@ -111,7 +114,7 @@ type Draft = {
 }
 
 function emptyDraft(eventId: string): Draft {
-  return { eventId, kindWord: null, main: null, answer: null, facts: [], bank: [], inferences: [], risks: [], opportunities: [], actions: [] }
+  return { eventId, kindWord: null, main: null, answer: null, clarification: null, facts: [], bank: [], inferences: [], risks: [], opportunities: [], actions: [] }
 }
 
 function readCitation(body: string, eventId: string, label: 'fact' | 'bank', issues: string[], opts: FeedParseOptions): DraftCitation | null {
@@ -147,10 +150,10 @@ function keepFeatures(note: FeedNote, eventId: string, issues: string[], opts: F
   return { ...note, companyFeatureIds: allowed }
 }
 
-function inferenceClaim(note: FeedNote, eventId: string, issues: string[]): DraftClaim | null {
+function inferenceClaim(note: FeedNote, eventId: string, issues: string[], quiet = false): DraftClaim | null {
   if (!note.text) return null
   if (!note.companyFeatureIds.length || !note.uncertainty) {
-    issues.push(`${eventId}: вывод без признака компании или оговорки не попадет в утверждения`)
+    if (!quiet) issues.push(`${eventId}: вывод без признака компании или оговорки не попадет в утверждения`)
     return null
   }
   return { kind: 'ai_inference', text: note.text, companyFeatureIds: note.companyFeatureIds.slice(0, 10), uncertainty: note.uncertainty, citations: [] }
@@ -164,18 +167,22 @@ function toEvent(d: Draft, issues: string[], opts: FeedParseOptions): ParsedEven
   const claims: DraftClaim[] = [
     ...d.facts.map((c) => ({ kind: 'fact' as const, text: c.quote, companyFeatureIds: [], uncertainty: null, citations: [c] })),
     ...d.bank.map((c) => ({ kind: 'bank_position' as const, text: c.quote, companyFeatureIds: [], uncertainty: null, citations: [c] })),
-    ...[answer, main, ...inferences].flatMap((n) => (n ? [inferenceClaim(n, d.eventId, issues)] : [])).filter((c): c is DraftClaim => c !== null),
-  ]
+    ...(answer ? [inferenceClaim(answer, d.eventId, issues, true)] : []),
+    ...[main, ...inferences].flatMap((n) => (n ? [inferenceClaim(n, d.eventId, issues)] : [])),
+  ].filter((c): c is DraftClaim => c !== null)
   const risks = notes(d.risks)
   const opportunities = notes(d.opportunities)
   const declared = d.kindWord ? KIND_BY_WORD[d.kindWord.toLowerCase().replace(/[^а-я]/g, '')] : undefined
   const kind: InsightKind = declared ?? (risks.length && !opportunities.length ? 'risk' : opportunities.length && !risks.length ? 'opportunity' : 'context')
-  if (!d.facts.length) issues.push(`${d.eventId}: нет подтвержденного факта из новости — карточка не будет опубликована`)
+  if (!d.facts.length && !answer && !d.clarification) issues.push(`${d.eventId}: нет подтвержденного факта из новости — карточка не будет опубликована`)
+  const clarification = opts.allowClarification === false ? null : d.clarification
+  const answerText = [answer?.text, clarification].filter(Boolean).join('\n\n') || null
   return {
     eventId: d.eventId,
     kind,
     summary: main?.text || null,
-    answer: answer?.text || null,
+    answer: answerText,
+    clarification,
     claims: claims.slice(0, MAX_CLAIMS),
     risks,
     opportunities,
@@ -188,10 +195,26 @@ export function parseFeedAnswer(text: string, opts: FeedParseOptions = {}): Feed
   const skipped: FeedParseResult['skipped'] = []
   const drafts: Draft[] = []
   let current: Draft | null = null
+  let multiline: { label: 'answer' | 'clarification'; lines: string[] } | null = null
+  const flush = () => {
+    if (!multiline || !current) return (multiline = null)
+    const body = multiline.lines.join('\n').trim()
+    if (multiline.label === 'answer') current.answer = splitNote(body)
+    else {
+      const text = splitNote(body).text
+      current.clarification = text ? text[0]!.toUpperCase() + text.slice(1) : null
+    }
+    multiline = null
+  }
 
   for (const rawLine of text.split('\n')) {
     const line = cleanLine(rawLine)
     if (!line) continue
+    if (multiline && !EVENT_HEADER.test(line) && !LABEL_LINE.test(line)) {
+      multiline.lines.push(rawLine.trim().replace(/\*\*/g, ''))
+      continue
+    }
+    flush()
     const header = line.match(EVENT_HEADER)
     if (header) {
       const eventId = header[1]!
@@ -227,7 +250,8 @@ export function parseFeedAnswer(text: string, opts: FeedParseOptions = {}): Feed
         current.main = splitNote(body)
         break
       case 'answer':
-        current.answer = splitNote(body)
+      case 'clarification':
+        multiline = { label, lines: [body] }
         break
       case 'inference':
         current.inferences.push(splitNote(body))
@@ -244,6 +268,7 @@ export function parseFeedAnswer(text: string, opts: FeedParseOptions = {}): Feed
     }
   }
 
+  flush()
   const skippedIds = new Set(skipped.map((s) => s.eventId))
   return { events: drafts.filter((d) => !skippedIds.has(d.eventId)).map((d) => toEvent(d, issues, opts)), skipped, issues }
 }
@@ -257,14 +282,32 @@ function finalAnswer(state: AgentState): string {
   return last ? textOf(last) : ''
 }
 
+function plainAnswer(text: string, eventId: string): ParsedEvent | null {
+  const answer = text
+    .split('\n')
+    .filter((l) => !/^\s*(?:\*\*)?(?:событие|факт|позиция банка|тип|главное)\b/i.test(l))
+    .join('\n')
+    .replace(/^\s*(?:\*\*)?ответ\s*:\s*/i, '')
+    .trim()
+  if (!answer) return null
+  return { eventId, kind: 'context', summary: null, answer, clarification: null, claims: [], risks: [], opportunities: [], actions: [] }
+}
+
 export function createFeedFinalizer(opts: {
   ctx: DataContext
   eventIds: string[]
   featureIds: string[]
+  mode?: 'feed' | 'question'
+  allowClarification?: boolean
   fallback?: (state: AgentState, config: RunnableConfig) => Promise<BaseMessage>
 }) {
   return async (state: AgentState, config: RunnableConfig): Promise<BaseMessage> => {
-    const result = parseFeedAnswer(finalAnswer(state), opts)
+    const text = finalAnswer(state)
+    const result = parseFeedAnswer(text, opts)
+    if (!result.events.length && !result.skipped.length && opts.mode === 'question' && opts.eventIds[0]) {
+      const plain = plainAnswer(text, opts.eventIds[0])
+      if (plain) result.events.push(plain)
+    }
     if (!result.events.length && !result.skipped.length && opts.fallback) return opts.fallback(state, config)
     return new AIMessage({ content: JSON.stringify(toStructuredDraft(result)) })
   }
