@@ -211,7 +211,26 @@ export function ServerWorkspace() {
           )}
           {items.map((i) => (
             <article key={i.id} className="space-y-3 border-t pt-5">
+              {i.relevance.version && (
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="outline">Приоритет {i.relevance.rank}</Badge>
+                  <span>Релевантность {Math.round(i.relevance.score * 100)} / 100</span>
+                </div>
+              )}
               <h3 className="font-semibold">{i.event.title}</h3>
+              {i.relevance.explanations?.length ? (
+                <ul
+                  className="space-y-1 text-xs leading-5 text-muted-foreground"
+                  aria-label="Основания приоритета"
+                >
+                  {i.relevance.explanations.map((e, index) => (
+                    <li key={`${e.featureId}-${index}`}>
+                      {e.signal} ·{' '}
+                      {context.features.find((f) => f.id === e.featureId)?.label ?? e.featureId}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               <p className="whitespace-pre-line text-sm leading-7">{i.summary}</p>
               <p className="text-xs leading-5 text-muted-foreground">{i.limitations.join(' ')}</p>
             </article>
