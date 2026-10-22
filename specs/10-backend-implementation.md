@@ -38,7 +38,7 @@ projects/backend/src/
 - Артефакты: `projects/api-client/openapi.json`, `src/schema.d.ts`; вручную не редактировать.
 - `pnpm contracts:generate` обновляет контракт; `pnpm contracts:check` обнаруживает drift в Git.
 - Browser использует `/api/v1`, Nitro снимает `/api`. Entity API модулей company/analysis использует generated operations; shared transport не содержит business DTO.
-- `/company → Данные сервиса` действительно читает catalog/context, запускает и отменяет run, опрашивает status и загружает сохраненную сводку. Вкладка «Демо-профиль» и остальные демо-экраны сохраняют прежнюю самостоятельную модель; полная миграция всей ленты на API еще нужна.
+- Все рабочие экраны используют API: feed/saved/context/history/detail/documents/trace/questions/feedback. Browser fixtures и отдельная вкладка сервиса удалены; TanStack Query управляет cache/polling. [Обновление продукта](12-product-workspace.md).
 - Pagination catalog — по ID. Feed — по ID в snapshot. History, bookmarks, conversation пока ограничены последними 100 записями; cursor pagination history/bookmarks работает внутри этого окна. Conversation возвращает окно целиком. Это ограничение MVP, не бесконечная история.
 
 ## SQL, очередь и согласованность
@@ -67,7 +67,7 @@ Worker — отдельный процесс того же backend-пакета.
 
 Bearer accounts задаются только сервером в `AUTH_USERS_JSON`: id, случайный token минимум 32 символа, разрешенные companyIds. Токен сравнивается по SHA-256 digest constant-time. Права на company + CLIENT проверяются в use cases, на run — также userId; worker повторяет проверку account/company. `perspective` не право доступа.
 
-`DEV_AUTH=true` допускается только вне production и дает локального пользователя с U_1/U_3. `AGENT_PROVIDER=fixture` использует синтетические CSV и новость из репозитория, не тратит бюджет и никогда не является fallback при ошибке live. Production запрещает оба shortcut. Полноценные SSO/OIDC, browser session/logout/CSRF и SQL membership еще не реализованы; static bearer accounts — явная начальная схема доступа, не корпоративный SSO.
+`DEV_AUTH=true` допускается только вне production и дает локального пользователя с U_1/U_3. `AGENT_PROVIDER=fixture` использует синтетические CSV и новость из репозитория, не тратит бюджет и никогда не является fallback при ошибке live. Production запрещает оба shortcut. Добавлены POST/DELETE session, HttpOnly подписанная cookie на 8 часов, Secure в production, SameSite=Strict и проверка Origin. Bearer accounts продолжают работать. SSO/OIDC и SQL membership administration остаются вне текущего контура; [подробности](12-product-workspace.md).
 
 Дневной global SQL ledger: 500 RUB максимум, смена дня в 00:00 UTC / 03:00 Москвы. Для live run атомарно резервируется `RUN_RESERVATION_RUB`, по умолчанию 25. Неизвестная валюта provider usage.cost не превращается в RUB или нулевую стоимость: DTO возвращает cost/currency=null и certainty=unknown; после начала run весь резерв считается расходом. Для queued cancellation резерв возвращается.
 

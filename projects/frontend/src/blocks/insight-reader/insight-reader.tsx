@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Bookmark, MessageSquare } from 'lucide-react'
-import { companies, roles } from '@/entities/company'
-import { steps } from '@/entities/analysis'
-import type { News } from '@/entities/insight'
-import { scopeKey, useWorkspace } from '@/entities/workspace'
+import { MessageSquare } from 'lucide-react'
+import { roles } from '@/entities/company'
+import { useTrace, type Insight } from '@/entities/insight'
+import { useWorkspace } from '@/entities/workspace'
+import { errorMessage } from '@/shared/lib'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { RequestError, RequestSkeleton } from '@/components/request-state'
 import {
   Sheet,
   SheetContent,
@@ -14,25 +15,116 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SaveButton } from '@/blocks/news-feed'
 import { ConversationPanel } from './conversation-panel'
 import { SourcesPanel } from './sources-panel'
 import { FeedbackPanel } from './feedback-panel'
 
+function TracePanel({ item }: { item: Insight }) {
+  const trace = useTrace(item)
+  const labels: Record<string, string> = {
+    'run.queued': 'Задание принято',
+    'run.completed': 'Анализ завершён',
+    'run.partial': 'Анализ завершён с ограничениями',
+    'run.failed': 'Анализ не завершён',
+    'run.cancelled': 'Анализ отменён',
+    'run.progress': 'Состояние задания обновлено',
+    'run.resuming': 'Анализ восстановлен после прерывания',
+    'step.started': 'Начат этап анализа',
+    'tool.completed': 'Источник данных обработан',
+    'model.completed': 'Ответ модели получен',
+  }
+  return (
+    <section aria-label="Журнал анализа">
+      {trace.isPending && <RequestSkeleton />}
+      {trace.error && (
+        <RequestError message={errorMessage(trace.error)} onRetry={() => void trace.refetch()} />
+      )}
+      <ol className="space-y-5">
+        {trace.data?.items.map((event) => (
+          <li key={event.id} className="flex gap-4">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-full border text-xs tabular-nums text-muted-foreground">
+              {event.sequence}
+            </span>
+            <div className="min-w-0">
+              <p className="break-words text-sm font-medium">
+                {labels[event.type] ?? 'Событие анализа'}
+              </p>
+              <time dateTime={event.at} className="text-xs text-muted-foreground">
+                {new Date(event.at).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} МСК
+              </time>
+              {typeof event.payload.message === 'string' && (
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  {event.payload.message}
+                </p>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+      {trace.data && !trace.data.items.length && (
+        <p className="text-sm text-muted-foreground">Журнал этого анализа недоступен.</p>
+      )}
+    </section>
+  )
+}
 export function InsightReader({
   item,
   onClose,
   onRestoreFocus,
 }: {
-  item: News
+  item: Insight
   onClose: () => void
   onRestoreFocus: () => void
 }) {
-  const { session, setSession } = useWorkspace()
+  const { session, company, context } = useWorkspace()
   const [tab, setTab] = useState('analysis')
-  const context = item.context[session.company]
-  const company = companies[session.company]
-  const key = scopeKey(session.company, session.role, item.id)
-  const saved = session.saved.includes(key)
+  const featureLabels = new Map(context.data?.features.map((f) => [f.id, f.label]))
+  const claims = (kind: Insight['claims'][number]['kind']) =>
+    item.claims.filter((c) => c.kind === kind)
+  function claimSection(kind: Insight['claims'][number]['kind'], title: string) {
+    const list = claims(kind)
+    return (
+      <section className={kind === 'ai_inference' ? 'impact-note' : ''}>
+        <h3 className="mb-3 text-sm font-semibold">{title}</h3>
+        {list.length ? (
+          list.map((claim) => (
+            <div key={claim.id} className="mb-4 space-y-2">
+              <p className="text-sm leading-7">
+                {claim.text}
+                {claim.evidenceIds.map((id) => (
+                  <Button
+                    key={id}
+                    variant="link"
+                    className="h-auto px-1 text-xs"
+                    onClick={() => setTab('sources')}
+                    aria-label={'Открыть источник ' + id}
+                  >
+                    [{id}]
+                  </Button>
+                ))}
+              </p>
+              {!!claim.companyFeatureIds.length && (
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Признаки:{' '}
+                  {claim.companyFeatureIds.map((id) => featureLabels.get(id) ?? id).join(', ')}
+                </p>
+              )}
+              {claim.uncertainty && (
+                <p className="text-xs leading-5 text-muted-foreground">{claim.uncertainty}</p>
+              )}
+            </div>
+          ))
+        ) : (
+          <p className="text-sm leading-7 text-muted-foreground">
+            {kind === 'bank_position'
+              ? 'Подтверждённая позиция банка для этого события отсутствует.'
+              : 'Подтверждённых данных для этого вывода недостаточно.'}
+          </p>
+        )}
+      </section>
+    )
+  }
   return (
     <Sheet
       open
@@ -48,12 +140,15 @@ export function InsightReader({
         className="w-full gap-0 overflow-y-auto p-0 sm:max-w-[820px]"
       >
         <SheetHeader className="gap-3 border-b px-5 pb-5 pr-14 pt-7 sm:px-9 sm:pr-14">
-          <p className="text-xs text-muted-foreground">{item.category} · 21 октября 2026 · Демо</p>
+          <p className="text-xs text-muted-foreground">
+            Сформировано{' '}
+            {new Date(item.generatedAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} МСК
+          </p>
           <SheetTitle className="max-w-2xl text-2xl font-semibold leading-8 tracking-tight">
-            {item.title}
+            {item.event.title}
           </SheetTitle>
           <SheetDescription>
-            {company.name} · {roles[session.role]}
+            {company?.displayName} · {roles[session.role]}
           </SheetDescription>
         </SheetHeader>
         <div className="px-5 pb-7 sm:px-9">
@@ -61,135 +156,94 @@ export function InsightReader({
             <TabsList className="reader-tabs mb-7 mt-2 h-12 w-full justify-start gap-5 overflow-x-auto rounded-none border-b bg-transparent p-0 sm:gap-7">
               <TabsTrigger value="analysis">Разбор</TabsTrigger>
               <TabsTrigger value="sources">
-                Источники<span className="ml-1.5 text-muted-foreground">{item.bank ? 3 : 2}</span>
+                Источники
+                <span className="ml-1.5 text-muted-foreground">{item.evidence.length}</span>
               </TabsTrigger>
               <TabsTrigger value="trace">Ход анализа</TabsTrigger>
               <TabsTrigger value="questions">Вопросы</TabsTrigger>
             </TabsList>
             <TabsContent value="analysis" className="space-y-6">
+              {item.status !== 'complete' && (
+                <Badge variant="outline">Разбор с ограничениями</Badge>
+              )}
+              {claimSection('fact', 'Что произошло')}
+              {claimSection('ai_inference', 'AI-интерпретация для вашей компании')}
               <section>
-                <h3 className="mb-2 text-sm font-semibold">Что произошло</h3>
-                <p className="text-sm leading-7 text-muted-foreground">
-                  {item.fact}
-                  <button
-                    className="ml-1.5 text-xs font-medium text-foreground underline underline-offset-4"
-                    aria-label="Открыть источник новости"
-                    onClick={() => setTab('sources')}
-                  >
-                    [1]
-                  </button>
+                <h3 className="mb-2 text-sm font-semibold">Почему это важно</h3>
+                <ul className="space-y-2 text-sm leading-6" aria-label="Основания приоритета">
+                  {item.relevance.reasons.map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                  {item.relevance.explanations?.map((reason, index) => (
+                    <li key={index}>
+                      {featureLabels.get(reason.featureId) ?? reason.featureId}: {reason.signal}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Приоритет {item.relevance.rank} · Релевантность{' '}
+                  {Math.round(item.relevance.score * 100)}/100
                 </p>
               </section>
-              <section className="impact-note">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold">Что это меняет для вас</h3>
-                  <Badge variant="outline" className="text-[11px] font-normal">
-                    AI-интерпретация · демо
-                  </Badge>
-                </div>
-                <p className="text-base leading-7">{context.impact}</p>
-                <p className="mt-4 text-xs leading-5 text-muted-foreground">
-                  Основание: {context.reason}
-                  <button
-                    className="ml-1.5 text-foreground underline underline-offset-4"
-                    aria-label="Открыть профиль-источник"
-                    onClick={() => setTab('sources')}
-                  >
-                    [2]
-                  </button>
-                </p>
-              </section>
-              <div className="grid gap-6 sm:grid-cols-2">
-                <section>
-                  <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                    <span className="size-1.5 rounded-full bg-destructive" />
-                    Риски
-                  </h3>
-                  <p className="text-sm leading-7 text-muted-foreground">{context.risk}</p>
+              {[
+                ['Риски', item.risks],
+                ['Возможности', item.opportunities],
+                ['Возможные следующие шаги', item.actions],
+              ].map(([title, lines]) => (
+                <section key={String(title)}>
+                  <h3 className="mb-2 text-sm font-semibold">{title}</h3>
+                  {(lines as string[]).length ? (
+                    <ul className="space-y-2 text-sm leading-7">
+                      {(lines as string[]).map((text) => (
+                        <li key={text}>{text}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm leading-7 text-muted-foreground">
+                      Не выделены по доступным данным.
+                    </p>
+                  )}
                 </section>
+              ))}
+              {claimSection('bank_position', 'Позиция банка')}
+              {item.bankPosition.status !== 'available' && (
+                <p className="text-xs leading-5 text-muted-foreground">
+                  {item.bankPosition.status === 'stale'
+                    ? 'Доступные материалы банка устарели.'
+                    : item.bankPosition.status === 'conflicting'
+                      ? 'Материалы банка содержат противоречия.'
+                      : 'AI-интерпретация не является позицией банка.'}
+                </p>
+              )}
+              {!!(item.missingData.length + item.limitations.length) && (
                 <section>
-                  <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                    <span className="size-1.5 rounded-full bg-positive" />
-                    Возможности
-                  </h3>
-                  <p className="text-sm leading-7 text-muted-foreground">{context.opportunity}</p>
+                  <h3 className="mb-3 text-sm font-semibold">Ограничения и неизвестные данные</h3>
+                  <ul className="space-y-2 text-sm leading-6 text-muted-foreground">
+                    {[...new Set([...item.missingData, ...item.limitations])].map((text) => (
+                      <li key={text}>{text}</li>
+                    ))}
+                  </ul>
                 </section>
-              </div>
-              <section className="border-y py-5">
-                <h3 className="mb-2 text-sm font-semibold">Возможный следующий шаг</h3>
-                <p className="text-sm leading-7">{context.action}</p>
-              </section>
-              <section>
-                <h3 className="mb-2 text-sm font-semibold">Позиция банка</h3>
-                <p className="text-sm leading-7 text-muted-foreground">
-                  {item.bank ??
-                    'Материал банка для этого события не подключён. Интерпретация выше не является позицией банка.'}
-                </p>
-              </section>
-              <section>
-                <h3 className="mb-2 text-sm font-semibold">Что остаётся неизвестным</h3>
-                <p className="text-sm leading-7 text-muted-foreground">
-                  {company.missing} Количественный эффект не рассчитывается.
-                </p>
-              </section>
+              )}
               <div className="flex flex-wrap gap-2">
                 <Button onClick={() => setTab('questions')}>
                   <MessageSquare className="size-4" />
                   Уточнить влияние
                 </Button>
-                <Button
-                  variant="outline"
-                  aria-pressed={saved}
-                  onClick={() =>
-                    setSession((s) => ({
-                      ...s,
-                      saved: saved ? s.saved.filter((k) => k !== key) : [...s.saved, key],
-                    }))
-                  }
-                >
-                  <Bookmark className={`size-4 ${saved ? 'fill-current' : ''}`} />
-                  {saved ? 'Сохранено' : 'Сохранить'}
-                </Button>
+                <SaveButton item={item} />
               </div>
             </TabsContent>
             <TabsContent value="sources">
               <SourcesPanel item={item} />
             </TabsContent>
             <TabsContent value="trace">
-              <p className="mb-6 text-sm leading-6 text-muted-foreground">
-                Сценарная последовательность, не журнал реального агента. Модель и инструменты не
-                вызывались.
-              </p>
-              <ol className="space-y-6">
-                {steps.map((step, index) => (
-                  <li key={step} className="flex gap-4">
-                    <span className="flex size-7 shrink-0 items-center justify-center rounded-full border text-xs tabular-nums text-muted-foreground">
-                      {index + 1}
-                    </span>
-                    <div>
-                      <h3 className="text-sm font-medium">{step}</h3>
-                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                        {
-                          [
-                            context.reason,
-                            `Событие сопоставлено с отраслью и ролью «${roles[session.role]}».`,
-                            item.bank
-                              ? 'Сопоставлены учебная новость, профиль и демо-аналитика.'
-                              : 'Материал банка отсутствует. Позиция банка не сформирована.',
-                            company.missing,
-                          ][index]
-                        }
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
+              <TracePanel item={item} />
             </TabsContent>
             <TabsContent value="questions">
               <ConversationPanel item={item} />
             </TabsContent>
           </Tabs>
-          <FeedbackPanel insightId={item.id} />
+          <FeedbackPanel item={item} />
         </div>
       </SheetContent>
     </Sheet>

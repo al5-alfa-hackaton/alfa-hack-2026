@@ -19,3 +19,5 @@ data/processed/
 # OCR transcripts reproduce bank materials verbatim; keep only metrics and summaries.
 research/agent/results/ocr-compare-*/*/*.md
 !research/agent/results/ocr-compare-*/*/report.md
+
+.local/

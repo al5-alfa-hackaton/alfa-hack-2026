@@ -5,6 +5,7 @@ import { loadConfig } from './config.js'
 import { compose } from './composition/runtime.js'
 const config = loadConfig()
 if (!config.DATABASE_URL) throw new Error('Worker requires DATABASE_URL')
+if (config.AGENT_PROVIDER === 'disabled') throw new Error('Worker requires a configured agent provider')
 const runtime = await compose(config)
 const connection = new Redis(config.REDIS_URL, { maxRetriesPerRequest: null })
 connection.on('error', () => {})
@@ -39,7 +40,7 @@ const worker = new Worker(
     }, 500)
     try {
       const principal =
-        config.DEV_AUTH && run.userId === 'local-demo'
+        config.DEV_AUTH && run.userId === 'local-user'
           ? { id: run.userId, companyIds: ['U_1', 'U_3'] }
           : users.find((u) => u.id === run.userId)
       if (!principal) throw new Error('scope_revoked')

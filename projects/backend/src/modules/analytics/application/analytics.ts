@@ -7,10 +7,27 @@ export class Analytics {
   constructor(
     readonly store: AnalyticsStore,
     private readonly companies: Companies,
-    private readonly options: { reservation: number; limit: number; mode: 'fixture' | 'research' },
+    private readonly options: {
+      reservation: number
+      limit: number
+      mode: 'fixture' | 'research'
+      available?: boolean
+    },
   ) {}
+  get analysisAvailable() {
+    return this.options.available !== false
+  }
+  get dataMode() {
+    return this.options.mode
+  }
   async start(p: Principal, input: RunInput, key: string) {
     this.companies.context(p, input.companyId)
+    if (!this.analysisAvailable)
+      throw new AppError(
+        'unavailable',
+        'Сервис анализа ещё не подключён. Обратитесь к администратору.',
+        false,
+      )
     if (input.kind === 'question') {
       if (!input.insightId || !input.question || !input.insightVersion)
         throw new AppError('invalid_request', 'Вопрос требует версии разбора')
@@ -33,10 +50,13 @@ export class Analytics {
   }
   async feed(p: Principal, companyId: string, perspective: Perspective) {
     this.companies.context(p, companyId)
-    return this.store.insights(companyId, perspective)
+    return (await this.store.insights(companyId, perspective)).filter(
+      (i) => i.dataMode === this.dataMode,
+    )
   }
   async detail(p: Principal, id: string, perspective: Perspective) {
     const insight = await this.store.insight(p, id, perspective)
+    if (insight.dataMode !== this.dataMode) throw new AppError('not_found', 'Разбор не найден')
     requireCompany(p, insight.companyId)
     this.companies.context(p, insight.companyId)
     return insight

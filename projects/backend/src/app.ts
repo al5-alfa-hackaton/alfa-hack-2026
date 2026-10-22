@@ -1,5 +1,7 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
+import cookie from '@fastify/cookie'
+import { createHash } from 'node:crypto'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
 import swagger from '@fastify/swagger'
@@ -15,7 +17,7 @@ import { loadConfig, type Config } from './config.js'
 import { compose, type Runtime } from './composition/runtime.js'
 import { AppError } from './shared/kernel/errors.js'
 import { transformOpenApi } from './plugins/openapi.js'
-import { registerAuth } from './plugins/auth.js'
+import { authRateKey, registerAuth } from './plugins/auth.js'
 import { createCompaniesModule } from './modules/companies/companies.module.js'
 import { createAnalyticsModule } from './modules/analytics/analytics.module.js'
 import { Redis } from 'ioredis'
@@ -43,13 +45,26 @@ export async function buildApp(config: Config = loadConfig(), deps?: Runtime) {
     allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'Last-Event-ID'],
   })
   app.register(helmet)
-  app.register(rateLimit, { max: 120, timeWindow: '1 minute' })
+  app.register(cookie, {
+    secret: createHash('sha256').update(JSON.stringify(config.accounts)).digest('hex'),
+  })
+  app.register(rateLimit, {
+    max: 600,
+    timeWindow: '1 minute',
+    hook: 'preHandler',
+    keyGenerator: authRateKey,
+  })
   app.register(swagger, {
     openapi: {
       info: { title: 'Alfa News Analytics API', version: '1.0.0' },
       servers: [{ url: '/' }],
-      components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } },
-      security: [{ bearerAuth: [] }],
+      components: {
+        securitySchemes: {
+          bearerAuth: { type: 'http', scheme: 'bearer' },
+          browserSession: { type: 'apiKey', in: 'cookie', name: 'alfa_session' },
+        },
+      },
+      security: [{ bearerAuth: [] }, { browserSession: [] }],
     },
     transform: jsonSchemaTransform,
     transformObject: transformOpenApi,
@@ -72,6 +87,10 @@ export async function buildApp(config: Config = loadConfig(), deps?: Runtime) {
       }
   })
   registerAuth(app, config)
+  app.addHook('onSend', async (req, reply, payload) => {
+    if (req.url.startsWith('/v1/')) reply.header('Cache-Control', 'private, no-store')
+    return payload
+  })
   app.setErrorHandler((error, req, reply) => {
     const codes: Record<string, number> = {
       unauthorized: 401,

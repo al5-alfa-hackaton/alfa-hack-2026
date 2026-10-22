@@ -1,23 +1,29 @@
 import { Loader2 } from 'lucide-react'
-import { steps } from '@/entities/analysis'
+import { runLabels, type ServerRun } from '@/entities/analysis'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
 
-export function AnalysisProgress({ step, onCancel }: { step: number; onCancel: () => void }) {
+export function AnalysisProgress({
+  run,
+  onCancel,
+  cancelling,
+}: {
+  run?: ServerRun
+  onCancel: () => void
+  cancelling: boolean
+}) {
   return (
     <section className="mb-6 rounded-lg border p-4" aria-label="Ход обновления">
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3">
         <p role="status" className="flex items-center gap-2 text-sm font-medium">
           <Loader2 className="size-4 animate-spin" />
-          {steps[step]}
+          {run ? runLabels[run.status] : 'Отправляем задание…'}
         </p>
-        <Button size="sm" variant="ghost" onClick={onCancel}>
+        <Button size="sm" variant="ghost" onClick={onCancel} disabled={!run || cancelling}>
           Отменить
         </Button>
       </div>
-      <Progress aria-label="Этапы анализа" value={step * 25} className="h-1" />
       <p className="mt-3 text-xs text-muted-foreground">
-        Демо-анализ · этап {step + 1} из {steps.length}. До завершения показана предыдущая сводка.
+        До завершения показана предыдущая сводка. Анализ продолжится, если вы закроете страницу.
       </p>
     </section>
   )

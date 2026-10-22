@@ -1,175 +1,207 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 
-const browserErrors = new WeakMap<Page, string[]>()
-test.afterEach(async ({ page }) => {
-  expect(browserErrors.get(page) ?? []).toEqual([])
-})
-
-test.beforeEach(async ({ page }) => {
-  const errors: string[] = []
-  browserErrors.set(page, errors)
-  page.on('pageerror', (error) => errors.push(error.message))
+const accessKey = process.env.E2E_ACCESS_KEY
+test.skip(!accessKey, 'Set E2E_ACCESS_KEY for an isolated fixture backend and worker')
+async function login(request: APIRequestContext) {
+  const result = await request.post('/api/v1/session', { data: { token: accessKey } })
+  expect(result.status()).toBe(200)
+}
+async function refresh(request: APIRequestContext, perspective = 'cfo', companyId = 'U_1') {
+  const accepted = await request.post('/api/v1/analysis-runs', {
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
+    data: { companyId, perspective, kind: 'refresh_feed' },
+  })
+  expect(accepted.status()).toBe(202)
+  const { runId } = await accepted.json()
+  await expect
+    .poll(async () => (await (await request.get('/api/v1/analysis-runs/' + runId)).json()).status)
+    .toBe('partial')
+}
+async function openFirst(page: Page) {
+  await page.locator('[data-event-title]').first().click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  return page.getByRole('dialog')
+}
+test('signs in without SSO, keeps keys out of browser storage, and logs out', async ({ page }) => {
   await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Вход в аналитику' })).toBeVisible()
+  await page.getByLabel('Ключ доступа').fill(accessKey!)
+  await page.getByRole('button', { name: 'Войти', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'События для вашего бизнеса' })).toBeVisible()
-})
-
-test('opens directly into the scoped feed, searches and resets an empty result', async ({
-  page,
-}) => {
-  await expect(page.locator('article')).toHaveCount(6)
-  await page.getByRole('searchbox', { name: 'Поиск по событиям' }).fill('несуществующее событие')
-  await expect(page.getByText('По этому запросу ничего нет')).toBeVisible()
-  await page.getByRole('button', { name: 'Сбросить фильтры' }).click()
-  await page.getByRole('radio', { name: 'Риски: 2', exact: true }).click()
-  await expect(page.locator('article')).toHaveCount(2)
-  await page.getByRole('radio', { name: 'Возможности: 3', exact: true }).click()
-  await expect(page.locator('article')).toHaveCount(3)
-})
-
-test('persists saved insights and keeps company and perspective scopes separate', async ({
-  page,
-}) => {
-  await page
-    .locator('[data-testid="news-rate"]')
-    .getByRole('button', { name: /^Сохранить:/ })
-    .click()
-  await page.getByRole('link', { name: 'Сохранённое', exact: true }).click()
-  await expect(page.locator('article')).toHaveCount(1)
-  await page.reload()
-  await expect(page.locator('article')).toHaveCount(1)
-  await page.getByRole('button', { name: 'Выбрать компанию и роль' }).click()
-  await page.getByRole('menuitemradio', { name: 'Город Маркет' }).click()
-  await expect(page.locator('article').first()).toContainText('Потребители чаще')
-  await page.getByRole('link', { name: 'Сохранённое', exact: true }).click()
-  await expect(page.getByText('Сохраните то, к чему хотите вернуться')).toBeVisible()
-  await page.getByRole('button', { name: 'Выбрать компанию и роль' }).click()
-  await page.getByRole('menuitemradio', { name: /Север Металл/ }).click()
-  await page.getByRole('button', { name: 'Выбрать компанию и роль' }).click()
-  await page.getByRole('menuitemradio', { name: 'Генеральный директор' }).click()
-  await page.getByRole('link', { name: 'Сохранённое', exact: true }).click()
-  await expect(page.locator('article')).toHaveCount(0)
-})
-
-test('deep links to a reader, shows sources and restores focus on close', async ({ page }) => {
-  const title = page.locator('[data-event-title="rate"]')
-  await title.click()
-  await expect(page).toHaveURL(/insight=rate/)
-  const reader = page.getByRole('dialog')
-  await expect(reader.getByRole('heading', { name: 'Что это меняет для вас' })).toBeVisible()
-  await reader.getByRole('tab', { name: /Источники/ }).click()
-  await expect(reader.getByText('Учебная новость · фрагмент 1')).toBeVisible()
-  await page.keyboard.press('Escape')
-  await expect(reader).toHaveCount(0)
-  await expect(title).toBeFocused()
-  await page.goto('/?insight=rate')
-  await expect(page.getByRole('dialog')).toBeVisible()
-  await page.reload()
-  await expect(page.getByRole('dialog')).toBeVisible()
-})
-
-test('asks a scoped question, keeps ratings separate from error remarks and persists them', async ({
-  page,
-}) => {
-  await page.locator('[data-event-title="rate"]').click()
-  const reader = page.getByRole('dialog')
-  await reader.getByRole('tab', { name: 'Вопросы', exact: true }).click()
-  await reader.getByRole('button', { name: 'Какие риски?', exact: true }).click()
-  await expect(reader.getByRole('log')).toContainText('Плавающая ставка')
-  await reader.getByRole('radio', { name: 'Полезно', exact: true }).click()
-  await reader.getByRole('button', { name: 'Сообщить об ошибке' }).click()
-  await page.getByLabel('Ваше замечание').fill('Нужен график погашения кредитов.')
-  await page.getByRole('button', { name: 'Сохранить замечание', exact: true }).click()
-  await expect(reader.getByRole('radio', { name: 'Полезно', exact: true })).toHaveAttribute(
-    'aria-checked',
-    'true',
+  const cookie = (await page.context().cookies()).find((item) => item.name === 'alfa_session')
+  expect(cookie?.httpOnly).toBe(true)
+  expect(await page.evaluate(() => JSON.stringify(localStorage) + document.cookie)).not.toContain(
+    accessKey,
   )
   await page.reload()
-  await page.getByRole('tab', { name: 'Вопросы', exact: true }).click()
-  await expect(page.getByRole('log')).toContainText('Плавающая ставка')
-  await expect(page.getByRole('button', { name: 'Изменить замечание' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'События для вашего бизнеса' })).toBeVisible()
+  await page.getByRole('button', { name: 'Выйти', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Вход в аналитику' })).toBeVisible()
 })
-
-test('cancels an analysis and records cancellation in history', async ({ page }) => {
-  await page.getByRole('button', { name: 'Обновить сводку', exact: true }).click()
-  await page.getByRole('button', { name: 'Отменить', exact: true }).click()
-  await expect(page.locator('article')).toHaveCount(6)
-  await page.getByRole('link', { name: 'История анализа' }).click()
-  await expect(page.getByRole('cell', { name: 'Отменён', exact: true })).toBeVisible()
-})
-
-for (const [scenario, heading] of [
-  ['Частичный результат', 'Сводка обновлена по доступным источникам'],
-  ['Нет новых событий', 'Новых событий пока нет'],
-  ['Ошибка сервиса', 'Не удалось обновить сводку'],
-  ['Лимит анализа', 'Лимит анализа исчерпан'],
-  ['Нет доступа', 'Нет доступа к источнику'],
-]) {
-  test(`handles the ${scenario} scenario`, async ({ page }) => {
-    await page.getByRole('button', { name: 'Сценарии демо' }).click()
-    await page.getByRole('radio', { name: new RegExp(scenario!) }).click()
-    await page.getByRole('button', { name: 'Запустить сценарий' }).click()
-    await expect(page.getByText(heading!, { exact: true })).toBeVisible()
-    if (scenario === 'Нет доступа') await expect(page.locator('article')).toHaveCount(0)
+test.describe('workspace backed by API and PostgreSQL', () => {
+  test.beforeEach(async ({ page }) => {
+    const request = page.request
+    await login(request)
+    await refresh(request)
+    const saved = await (
+      await request.get('/api/v1/companies/U_1/saved-insights?perspective=cfo&limit=100')
+    ).json()
+    for (const item of saved.items)
+      await request.delete(
+        '/api/v1/me/saved-insights/' + item.id + '?perspective=cfo&version=' + item.version,
+      )
+    await page.goto('/')
+    await expect(page.locator('article')).toHaveCount(3)
   })
-}
-
-test('downloads a filtered digest instead of an unrelated full feed', async ({ page }) => {
-  await page.getByRole('searchbox').fill('маршрут')
-  const download = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Скачать сводку' }).click()
-  const file = await download
-  expect(file.suggestedFilename()).toBe('alfa-demo-nord-cfo.txt')
-  const stream = await file.createReadStream()
-  const parts = []
-  for await (const part of stream!) parts.push(part)
-  const text = Buffer.concat(parts).toString('utf8')
-  expect(text).toContain('Новый грузовой маршрут')
-  expect(text).not.toContain('Ставка без изменений')
-  expect(text).toContain('Не является реальной аналитикой банка')
-})
-
-test('works on mobile without overflow and supports menu navigation', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 })
-  await expect(page.getByText('Север Металл', { exact: true }).first()).toBeVisible()
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-  const filters = page.getByRole('radiogroup', { name: 'Фильтровать события' })
-  if (await filters.count()) {
-    const box = await filters.boundingBox()
-    expect(box!.x + box!.width).toBeLessThanOrEqual(390 - 8)
-  }
-  await page.getByRole('button', { name: 'Открыть навигацию', exact: true }).click()
-  await page.getByRole('link', { name: 'Контекст компании', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Контекст компании' })).toBeVisible()
-  await expect(page.getByRole('dialog')).toHaveCount(0)
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-})
-
-test('recovers from invalid saved state and passes core accessibility checks', async ({ page }) => {
-  await page.evaluate(() => localStorage.setItem('alfa-demo-v1', '{invalid'))
-  await page.reload()
-  await expect(page.getByRole('status').filter({ hasText: 'Хранилище браузера' })).toBeVisible()
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
-  expect(results.violations).toEqual([])
-})
-
-test('dark theme stays readable and restores its preference', async ({ page }) => {
-  await page.getByRole('button', { name: 'Переключить тему' }).click()
-  await expect(page.locator('html')).toHaveClass(/dark/)
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
-  expect(results.violations).toEqual([])
-  await page.reload()
-  await expect(page.locator('html')).toHaveClass(/dark/)
-})
-
-test('reader sources and conversation meet core accessibility checks', async ({ page }) => {
-  await page.locator('[data-event-title="rate"]').click()
-  await page.getByRole('tab', { name: /Источники/ }).click()
-  expect(
-    (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations,
-  ).toEqual([])
-  await page.getByRole('tab', { name: 'Вопросы', exact: true }).click()
-  expect(
-    (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations,
-  ).toEqual([])
+  test('searches real API results and exports only the selected events', async ({ page }) => {
+    await expect(page.getByText('Демо', { exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /Сценарии/ })).toHaveCount(0)
+    await page.getByRole('searchbox', { name: 'Поиск по событиям' }).fill('несуществующее событие')
+    await expect(page.getByText('По этому запросу ничего нет')).toBeVisible()
+    await page.getByRole('button', { name: 'Сбросить фильтры' }).click()
+    await page.getByRole('searchbox', { name: 'Поиск по событиям' }).fill('финансирования')
+    await expect(page.locator('article')).toHaveCount(1)
+    const download = page.waitForEvent('download')
+    await page.getByRole('button', { name: 'Скачать сводку' }).click()
+    const path = await (await download).path()
+    const { readFile } = await import('node:fs/promises')
+    const text = await readFile(path!, 'utf8')
+    expect(text).toContain('Изменение условий финансирования')
+    expect(text).not.toContain('Спрос на сталь')
+  })
+  test('saves to the account, restores on reload and separates perspectives', async ({ page }) => {
+    const first = page.locator('article').first()
+    const save = first.getByRole('button', { name: /^Сохранить:/ })
+    await save.click()
+    await expect(first.getByRole('button', { name: /^Убрать из сохранённого:/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    await page.getByRole('link', { name: 'Сохранённое', exact: true }).click()
+    await expect(page.locator('article')).toHaveCount(1)
+    await page.reload()
+    await expect(page.locator('article')).toHaveCount(1)
+    await page.getByRole('button', { name: 'Выбрать компанию и роль' }).click()
+    await page.getByRole('menuitemradio', { name: 'Генеральный директор', exact: true }).click()
+    await page.getByRole('link', { name: 'Сохранённое', exact: true }).click()
+    await expect(page.locator('article')).toHaveCount(0)
+    await expect(page.getByText('Сохраните то, к чему хотите вернуться')).toBeVisible()
+    await page.reload()
+    await expect(page.getByText('Сохраните то, к чему хотите вернуться')).toBeVisible()
+  })
+  test('deep-links to persisted insights, loads authorized sources and restores focus', async ({
+    page,
+  }) => {
+    const title = page.locator('[data-event-title]').first()
+    const id = await title.getAttribute('data-event-title')
+    const reader = await openFirst(page)
+    await expect(page).toHaveURL(new RegExp('insight=' + id))
+    await reader.getByRole('tab', { name: /Источники/ }).click()
+    await reader
+      .getByRole('button', { name: /Новостная публикация/ })
+      .first()
+      .click()
+    await expect(reader.getByRole('blockquote')).toContainText('Синтетическая новость')
+    await page.keyboard.press('Escape')
+    await expect(title).toBeFocused()
+    await page.goto('/?insight=' + id)
+    await expect(page.getByRole('dialog')).toBeVisible()
+    await page.reload()
+    await expect(page.getByRole('dialog')).toBeVisible()
+  })
+  test('persists questions, ratings, comments and the actual agent journal', async ({ page }) => {
+    const reader = await openFirst(page)
+    await reader.getByRole('tab', { name: 'Вопросы', exact: true }).click()
+    await reader.getByLabel('Ваш вопрос').fill('Какие риски?')
+    await reader.getByRole('button', { name: 'Отправить вопрос' }).click()
+    await expect(reader.getByRole('log')).toContainText('Аналитик', { timeout: 15000 })
+    await reader.getByRole('radio', { name: 'Полезно', exact: true }).click()
+    await expect(reader.getByRole('radio', { name: 'Полезно', exact: true })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    await reader.getByRole('button', { name: 'Сообщить об ошибке' }).click()
+    await page.getByLabel('Ваше замечание').fill('Проверить цитату и дату публикации.')
+    await page.getByRole('button', { name: 'Сохранить замечание', exact: true }).click()
+    await page.reload()
+    await expect(page.getByRole('radio', { name: 'Полезно', exact: true })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    await page.getByRole('tab', { name: 'Вопросы', exact: true }).click()
+    await expect(page.getByRole('log')).toContainText('Какие риски?')
+    await expect(page.getByRole('button', { name: 'Изменить замечание' })).toBeVisible()
+    await page.getByRole('tab', { name: 'Ход анализа', exact: true }).click()
+    await expect(page.getByRole('region', { name: 'Журнал анализа' })).toContainText(
+      'Задание принято',
+    )
+  })
+  test('updates through the queue and restores the server history', async ({ page }) => {
+    await page.getByRole('button', { name: 'Обновить сводку', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Обновить сводку', exact: true })).toBeEnabled({
+      timeout: 15000,
+    })
+    await page.getByRole('link', { name: 'История анализа', exact: true }).click()
+    await expect(page.getByRole('table')).toContainText('Готово с ограничениями')
+    const count = await page.getByRole('row').count()
+    await page.reload()
+    await expect(page.getByRole('row')).toHaveCount(count)
+  })
+  test('changes server ranking with company and role and opens the real profile', async ({
+    page,
+  }) => {
+    const request = page.request
+    await refresh(request, 'ceo')
+    await refresh(request, 'ceo', 'U_3')
+    await page.getByRole('button', { name: 'Выбрать компанию и роль' }).click()
+    await page.getByRole('menuitemradio', { name: 'Генеральный директор', exact: true }).click()
+    await expect(page.locator('article').first()).toContainText('Спрос на сталь')
+    await page.getByRole('button', { name: 'Выбрать компанию и роль' }).click()
+    await page.getByRole('menuitemradio', { name: /Компания U_3/ }).click()
+    await expect(page.locator('article').first()).toContainText('Поставки угля')
+    await page.getByRole('link', { name: 'Контекст компании', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Компания U_3', exact: true })).toBeVisible()
+    await expect(page.getByRole('table')).toContainText('Лизинг')
+    await expect(page.getByRole('tab', { name: 'Демо-профиль' })).toHaveCount(0)
+    await page.reload()
+    await expect(page.getByRole('heading', { name: 'Компания U_3', exact: true })).toBeVisible()
+  })
+  test('shows API failure with retry rather than a fabricated feed', async ({ page }) => {
+    await page.route('**/api/v1/companies/U_1/insights?*', (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'unavailable', message: 'Временная ошибка источника' }),
+      }),
+    )
+    await page.reload()
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'Временная ошибка источника' }),
+    ).toBeVisible()
+    await expect(page.locator('article')).toHaveCount(0)
+    await page.unroute('**/api/v1/companies/U_1/insights?*')
+    await page.getByRole('button', { name: 'Повторить', exact: true }).click()
+    await expect(page.locator('article')).toHaveCount(3)
+  })
+  test('works on mobile and passes accessibility checks in the feed and reader', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true)
+    await page.getByRole('button', { name: 'Открыть навигацию' }).click()
+    await page.getByRole('link', { name: 'Контекст компании', exact: true }).click()
+    await expect(
+      page.getByRole('heading', { name: 'Контекст компании', exact: true }),
+    ).toBeVisible()
+    await page.goto('/')
+    await expect(page.locator('article')).toHaveCount(3)
+    const feed = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
+    expect(feed.violations).toEqual([])
+    await openFirst(page)
+    const reader = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
+    expect(reader.violations).toEqual([])
+  })
 })

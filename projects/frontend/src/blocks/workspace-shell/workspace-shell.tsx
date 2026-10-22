@@ -1,13 +1,16 @@
 import type { ReactNode } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
-import { Bookmark, Building2, CircleHelp, History, ListFilter, Moon, Sun } from 'lucide-react'
+import { Bookmark, Building2, LogOut, History, ListFilter, Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useWorkspace } from '@/entities/workspace'
-import { companies } from '@/entities/company'
+import { useState } from 'react'
+import { errorMessage } from '@/shared/lib'
+import { toast } from 'sonner'
+import { EmptyState } from '@/components/empty-state'
+import { RequestError, RequestSkeleton } from '@/components/request-state'
+import { LoginPanel } from './login-panel'
 import { Brand } from '@/components/brand'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   Sidebar,
   SidebarContent,
@@ -58,8 +61,22 @@ function Navigation() {
 }
 
 export function WorkspaceShell({ children }: { children: ReactNode }) {
-  const { session, ready, storageWarning } = useWorkspace()
+  const workspace = useWorkspace()
+  const { company, ready, unauthorized, error, loading } = workspace
+  const [leaving, setLeaving] = useState(false)
   const { resolvedTheme, setTheme } = useTheme()
+  if (unauthorized) return <LoginPanel />
+  if (!ready)
+    return (
+      <main className="mx-auto max-w-xl px-5 py-20">
+        <Brand />
+        {loading ? (
+          <RequestSkeleton />
+        ) : (
+          <RequestError message={errorMessage(error)} onRetry={workspace.retry} />
+        )}
+      </main>
+    )
   return (
     <SidebarProvider style={{ '--sidebar-width': '224px' } as React.CSSProperties}>
       <a
@@ -84,19 +101,26 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter className="gap-4 px-5 pb-5">
-          <div className="border-t pt-4 text-xs leading-5 text-muted-foreground">
-            <span className="mb-1 block font-medium text-foreground">Демонстрационная среда</span>
-            Компании и события вымышлены. Выводы не являются позицией банка.
-          </div>
+          <p className="border-t pt-4 text-xs leading-5 text-muted-foreground">
+            Данные и выводы доступны только в рамках вашей организации.
+          </p>
           <Button
-            asChild
             variant="ghost"
             className="h-8 justify-start px-0 text-xs text-muted-foreground"
+            disabled={leaving}
+            onClick={async () => {
+              setLeaving(true)
+              try {
+                await workspace.logout()
+              } catch (cause) {
+                toast.error(errorMessage(cause))
+              } finally {
+                setLeaving(false)
+              }
+            }}
           >
-            <Link to="/ui-kit" search={{}}>
-              <CircleHelp className="size-3.5" />
-              Компоненты и тема
-            </Link>
+            <LogOut className="size-3.5" />
+            Выйти
           </Button>
         </SidebarFooter>
       </Sidebar>
@@ -108,13 +132,10 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
               Новостная аналитика
             </span>
             <span className="truncate text-sm font-medium md:hidden">
-              {companies[session.company].name}
+              {company?.displayName ?? 'Новостная аналитика'}
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            <Badge variant="outline" className="font-normal">
-              Демо
-            </Badge>
             <Button
               variant="ghost"
               size="icon-sm"
@@ -127,22 +148,13 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           </div>
         </header>
         <div id="main" className="min-w-0 flex-1 px-4 py-6 sm:px-7 lg:px-9 lg:py-8">
-          {storageWarning && (
-            <p
-              role="status"
-              className="mb-5 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm"
-            >
-              Хранилище браузера недоступно или повреждено. Изменения могут не сохраниться.
-            </p>
-          )}
-          {ready ? (
+          {company ? (
             children
           ) : (
-            <div aria-label="Загрузка рабочего пространства" className="space-y-6">
-              <Skeleton className="h-8 w-64" />
-              <Skeleton className="h-11 w-full" />
-              <Skeleton className="h-48 w-full" />
-            </div>
+            <EmptyState
+              title="Нет доступных компаний"
+              description="Администратор может предоставить доступ к профилю компании."
+            />
           )}
         </div>
       </SidebarInset>

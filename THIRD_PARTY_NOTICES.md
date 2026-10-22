@@ -8,6 +8,7 @@
 | ---------------------------- | --------------- | ---------- |
 | @axe-core/playwright         | 4.14.0          | MPL-2.0    |
 | @base-ui/react               | 1.9.0           | MIT        |
+| @fastify/cookie              | 11.1.3          | MIT        |
 | @fastify/cors                | 11.3.1          | MIT        |
 | @fontsource-variable/manrope | 5.3.0           | OFL-1.1    |
 | @hookform/resolvers          | 6.0.0           | MIT        |
@@ -17,6 +18,7 @@
 | @playwright/test             | 1.64.1          | Apache-2.0 |
 | @shadcn/react                | 0.3.1           | MIT        |
 | @tailwindcss/vite            | 4.3.3           | MIT        |
+| @tanstack/react-query        | 5.104.5         | MIT        |
 | @tanstack/react-router       | 1.170.45        | MIT        |
 | @tanstack/react-start        | 1.169.3         | MIT        |
 | @tanstack/router-cli         | 1.167.45        | MIT        |
@@ -81,11 +83,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ## Модели, данные и интеграции
 
-Research использует LangChain/LangGraph, CSV/RSS/PDF/OCR и gateway разрешенных моделей; это отдельный CLI, не подключенный к предметному frontend API. Модели, источники, ограничения и исторические результаты перечислены в research/agent/README.md. Исходные CSV, PDF банка и OCR/run outputs не входят в Git; права доступа и хранения должны быть проверены при deployment. BullMQ, Redis, OpenCode и внешние MCP-серверы не подключены. Реальные SSO/банковские операции не реализованы.
+Research и backend используют LangChain/LangGraph, CSV/RSS/PDF/OCR, BullMQ/Redis и gateway разрешённых моделей. Источники и исторические результаты — research/agent/README.md. Исходные CSV, PDF банка, OCR/run outputs исключены из Git. SSO и банковские операции не реализованы. Redis 7.4 имеет собственные условия лицензирования (RSALv2/SSPLv1); проверьте их при deployment. BullMQ — MIT.
 
-## Синтетический frontend
+Локальный OCR использует установленный Tesseract (Apache-2.0). Языковые файлы rus/eng в этой среде — tessdata_fast / системная поставка; загрузка rus: https://github.com/tesseract-ocr/tessdata_fast (Apache-2.0). Бинарники и обученные данные в репозиторий не включены.
 
-Fixtures в projects/frontend/src/entities/company и entities/insight написаны для демонстрации. Компании, новости, показатели и аналитические тексты вымышлены и не являются реальными материалами или позицией Альфа-Банка. Скриншоты получены с этих fixtures; реальные данные не публикуются. Знак бренда — демонстрационное представление, не отдельная лицензия на товарный знак.
+## Данные на снимках
+
+Frontend browser fixtures удалены. Снимки README показывают интерфейс с обезличенным набором организаторов и явно недоступным новым анализом до настройки LLM. Приведены только anonymous company ID и признаки из набора; исходные CSV/PDF/OCR не публикуются в Git. Права на материалы остаются у правообладателей. Использование фирменного знака не предоставляет отдельную лицензию на товарный знак.
 
 Manrope распространяется по SIL Open Font License 1.1; fontsource package доставляет font files локально. Лицензию шрифта сохранять при дистрибуции.
 

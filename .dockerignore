@@ -12,3 +12,6 @@
 specs
 research/agent/results
 research/agent/test
+
+data
+.local

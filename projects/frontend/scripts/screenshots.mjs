@@ -1,9 +1,14 @@
-import { mkdir } from 'node:fs/promises'
+import { mkdir, readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { chromium } from '@playwright/test'
+import { chromium, expect } from '@playwright/test'
 
-const output = fileURLToPath(new URL('../../../docs/screenshots/', import.meta.url))
+const root = fileURLToPath(new URL('../../../', import.meta.url))
+const output = resolve(root, 'docs/screenshots')
 const baseURL = process.env.SCREENSHOT_BASE_URL ?? 'http://127.0.0.1:3000'
+const keyFile = process.env.SCREENSHOT_ACCESS_KEY_FILE
+if (!keyFile) throw new Error('Set SCREENSHOT_ACCESS_KEY_FILE to an ignored local access-key file')
+const token = (await readFile(resolve(root, keyFile), 'utf8')).trim()
 await mkdir(output, { recursive: true })
 const browser = await chromium.launch({
   executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
@@ -18,45 +23,33 @@ const context = await browser.newContext({
 const page = await context.newPage()
 const errors = []
 page.on('pageerror', (error) => errors.push(error.message))
-async function ready() {
+async function screen(name) {
   await page.evaluate(() => document.fonts.ready)
   await page.getByRole('heading', { level: 1 }).waitFor()
-}
-async function screen(name) {
-  await ready()
-  await page.screenshot({ path: `${output}${name}.png`, animations: 'disabled' })
-  console.log(`${name}.png`)
-}
-async function panel(name) {
-  const dialog = page.getByRole('dialog')
-  await dialog.evaluate((element) => {
-    element.scrollTop = 0
-  })
-  await dialog.screenshot({ path: `${output}${name}.png`, animations: 'disabled' })
-  console.log(`${name}.png`)
+  await page.screenshot({ path: resolve(output, name + '.png'), animations: 'disabled' })
+  console.log(name + '.png')
 }
 try {
-  await page.goto(baseURL, { waitUntil: 'networkidle' })
-  await page.getByRole('heading', { name: 'События для вашего бизнеса' }).waitFor()
-  await screen('feed-desktop')
-  await page.locator('[data-event-title="rate"]').click()
-  await page.getByRole('heading', { name: 'Что это меняет для вас' }).waitFor()
-  await panel('insight-reader')
-  await page.getByRole('tab', { name: /Источники/ }).click()
-  await page.getByText('Учебная новость · фрагмент 1', { exact: false }).waitFor()
-  await panel('sources')
-  await page.getByRole('tab', { name: 'Вопросы', exact: true }).click()
-  await page.getByRole('button', { name: 'Какие риски?', exact: true }).click()
-  await page
-    .getByRole('log')
-    .getByText(/Плавающая ставка/)
-    .waitFor()
-  await panel('conversation')
-  await page.keyboard.press('Escape')
-  await page.getByRole('link', { name: 'Контекст компании', exact: true }).click()
-  await page.getByRole('heading', { name: 'Контекст компании', exact: true }).waitFor()
+  await expect
+    .poll(async () => (await context.request.get(baseURL + '/api/ready')).status(), {
+      timeout: 30_000,
+    })
+    .toBe(200)
+  await page.goto(baseURL)
+  await page.getByRole('heading', { name: 'Вход в аналитику' }).waitFor()
+  await screen('login')
+  const login = await context.request.post(baseURL + '/api/v1/session', { data: { token } })
+  if (login.status() !== 200) throw new Error('Could not authenticate screenshot session')
+  await page.goto(baseURL + '/company')
+  await page.getByRole('table').waitFor()
   await screen('company-desktop')
-  await page.getByRole('link', { name: 'События для вас', exact: true }).click()
+  await page.goto(baseURL)
+  await page
+    .getByRole('complementary', { name: 'Контекст персонализации' })
+    .getByRole('link', { name: /Весь профиль/ })
+    .waitFor()
+  await expect(page.getByRole('status', { name: 'Загрузка данных' })).toHaveCount(0)
+  await screen('feed-desktop')
   await page.getByRole('button', { name: 'Переключить тему' }).click()
   await page.locator('html.dark').waitFor()
   await screen('feed-dark')
@@ -66,7 +59,7 @@ try {
   await screen('feed-tablet')
   await page.setViewportSize({ width: 390, height: 844 })
   await screen('feed-mobile')
-  if (errors.length) throw new Error(`Browser errors: ${errors.join('; ')}`)
+  if (errors.length) throw new Error('Browser errors: ' + errors.join('; '))
 } finally {
   await context.close()
   await browser.close()

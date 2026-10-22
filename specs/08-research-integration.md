@@ -1,5 +1,8 @@
 # Research: аудит и план интеграции
 
+> Исторический аудит/план. Текущее подключение всех экранов, browser sessions, данные и ограничения: [12-product-workspace.md](12-product-workspace.md).
+
+
 > Реализованы [ranking, PostgreSQL checkpoints, recovery и model journal](11-ranking-and-checkpoints.md); пункты старого аудита про их отсутствие относятся к исходному research CLI.
 
 > Обновление backend: [реализованный контур и ограничения MVP](10-backend-implementation.md). Ниже сохранены исходный аудит и целевые требования; наличие пункта в roadmap не означает отсутствие его MVP-реализации.
