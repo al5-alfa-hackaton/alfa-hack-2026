@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { MessageSquare } from 'lucide-react'
-import { roles } from '@/entities/company'
+import { roles, featureLabel, relevanceReason } from '@/entities/company'
 import { useTrace, type Insight } from '@/entities/insight'
 import { useWorkspace } from '@/entities/workspace'
 import { errorMessage } from '@/shared/lib'
@@ -107,7 +107,9 @@ export function InsightReader({
               {!!claim.companyFeatureIds.length && (
                 <p className="text-xs leading-5 text-muted-foreground">
                   Признаки:{' '}
-                  {claim.companyFeatureIds.map((id) => featureLabels.get(id) ?? id).join(', ')}
+                  {claim.companyFeatureIds
+                    .map((id) => featureLabel(id, featureLabels.get(id)))
+                    .join(', ')}
                 </p>
               )}
               {claim.uncertainty && (
@@ -172,11 +174,12 @@ export function InsightReader({
                 <h3 className="mb-2 text-sm font-semibold">Почему это важно</h3>
                 <ul className="space-y-2 text-sm leading-6" aria-label="Основания приоритета">
                   {item.relevance.reasons.map((reason) => (
-                    <li key={reason}>{reason}</li>
+                    <li key={reason}>{relevanceReason(reason)}</li>
                   ))}
                   {item.relevance.explanations?.map((reason, index) => (
                     <li key={index}>
-                      {featureLabels.get(reason.featureId) ?? reason.featureId}: {reason.signal}
+                      {featureLabel(reason.featureId, featureLabels.get(reason.featureId))}:{' '}
+                      {reason.signal}
                     </li>
                   ))}
                 </ul>

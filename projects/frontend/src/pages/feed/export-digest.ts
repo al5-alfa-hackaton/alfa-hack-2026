@@ -1,5 +1,5 @@
 import { toast } from 'sonner'
-import { roles, type Role } from '@/entities/company'
+import { roles, relevanceReason, type Role } from '@/entities/company'
 import type { Insight } from '@/entities/insight'
 
 export function digestText(items: Insight[], companyName: string, role: Role) {
@@ -12,7 +12,7 @@ export function digestText(items: Insight[], companyName: string, role: Role) {
         '\n' + item.event.title,
         'Сформировано: ' + item.generatedAt,
         item.summary,
-        'Основания: ' + item.relevance.reasons.join('; '),
+        'Основания: ' + item.relevance.reasons.map(relevanceReason).join('; '),
         ...item.claims.map(
           (claim) =>
             claim.kind +
