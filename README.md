@@ -4,7 +4,7 @@
 
 [![Персональная сводка событий](docs/screenshots/feed-desktop.png)](docs/screenshots/feed-desktop.png)
 
-**Интерактивное демо:** две учебные компании, два аналитических ракурса, шесть событий. Основное демо работает в браузере. На `/company → Данные сервиса` подключены Fastify API, PostgreSQL, BullMQ worker и типизированный клиент. Backend поддерживает собственный LangGraph-агент из `research/agent`; локальный fixture-режим не требует платного LLM. Вымышленные показатели и тексты не являются данными клиента или позицией Альфа-Банка.
+**Интерактивное демо:** две учебные компании, два аналитических ракурса, шесть событий. Основное демо работает в браузере. На `/company → Данные сервиса` подключены Fastify API, PostgreSQL, BullMQ worker и типизированный клиент. Backend ранжирует несколько событий по компании/CFO/CEO, сохраняет checkpoints в PostgreSQL и поддерживает собственный LangGraph-агент из `research/agent`; локальный fixture-режим не требует платного LLM. Вымышленные показатели и тексты не являются данными клиента или позицией Альфа-Банка.
 
 [Быстрый запуск](#запуск) · [Сценарий проверки](#что-попробовать) · [Архитектура](specs/07-frontend-architecture.md) · [Нужные API](specs/05-api-and-ui.md) · [Research](research/agent/README.md)
 
@@ -65,7 +65,7 @@ pnpm dev
 pnpm worker
 ```
 
-Backend — **3001**. Nitro проксирует `/api/*` в Fastify, снимая `/api`; `API_PROXY_TARGET` задается при dev-запуске или сборке frontend. Откройте «Контекст компании → Данные сервиса»: U_1/U_3 — отдельные синтетические CSV-профили, сводка сохраняется в SQL. Swagger UI: http://localhost:3001/docs. [Устройство backend, auth и live-конфигурация](specs/10-backend-implementation.md).
+Backend — **3001**. Nitro проксирует `/api/*` в Fastify, снимая `/api`; `API_PROXY_TARGET` задается при dev-запуске или сборке frontend. Откройте «Контекст компании → Данные сервиса», сформируйте сводку и переключите CFO/CEO, чтобы проверить порядок и основания приоритетов. U_1/U_3 — отдельные синтетические CSV-профили, сводка сохраняется в SQL. Swagger UI: http://localhost:3001/docs. [Устройство backend, auth и live-конфигурация](specs/10-backend-implementation.md).
 
 ## Что попробовать
 
@@ -167,6 +167,6 @@ Integration создает отдельную временную БД и изо�
 
 [Исследовательский агент](research/agent/README.md) уже умеет читать профили/связи, искать новости и материалы банка, использовать OCR и собственный bounded LangGraph-цикл. Исторические отчеты: [модели](research/agent/results/llm-smoke-2026-10-21.md), [OCR](research/agent/results/ocr-compare-2026-10-21/SUMMARY.md). Исходные CSV, PDF банка, OCR тексты и run outputs хранятся вне Git.
 
-Backend импортирует graph/tools как библиотеку, ограничивает модели, валидирует output/citations и сохраняет lifecycle/events/insights. [Реализованный контур и ограничения](specs/10-backend-implementation.md), [API и DTO](specs/05-api-and-ui.md), [исходный аудит research](specs/08-research-integration.md). Следующие шаги: корпоративный SSO, реальные данные и live-проверка gateway, graph checkpoints, ранжирование и полное подключение демо-экранов к API. Не запускайте готового автономного агента как основной компонент: PDF требует собственную агентную логику и только разрешенные модели.
+Backend импортирует graph/tools как библиотеку, ограничивает модели, валидирует output/citations и сохраняет lifecycle/events/insights. [Реализованный контур и ограничения](specs/10-backend-implementation.md), [API и DTO](specs/05-api-and-ui.md), [исходный аудит research](specs/08-research-integration.md). Реализованы [ранжирование и graph checkpoints](specs/11-ranking-and-checkpoints.md), восстановление worker с сохраненными ответами модели и защита от повторного платного вызова с неизвестным исходом. Следующие шаги: корпоративный SSO, реальные данные и live-проверка gateway, экспертная калибровка ranking и полное подключение демо-экранов к API. Не запускайте готового автономного агента как основной компонент: PDF требует собственную агентную логику и только разрешенные модели.
 
 [Все спецификации](specs/README.md) · [Исходный кейс](specs/source/brief.pdf) · [Сторонние компоненты и лицензии](THIRD_PARTY_NOTICES.md)
