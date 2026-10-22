@@ -19,8 +19,32 @@ export async function createData(config: Config) {
       title: 'Изменение условий финансирования — учебный пример',
       text,
       url: 'https://example.com/fixture',
-      publishedAt: '2026-10-01T00:00:00.000Z',
-      fetchedAt: '2026-10-01T00:00:00.000Z',
+      publishedAt: '2026-10-21T00:00:00.000Z',
+      fetchedAt: '2026-10-21T00:00:00.000Z',
     },
+    ...[
+      {
+        id: 'news_fixture_steel',
+        title: 'Спрос на сталь — учебный пример',
+        text: 'Синтетическая новость: спрос на сталь и металлопрокат изменился.',
+      },
+      {
+        id: 'news_fixture_coal',
+        title: 'Поставки угля — учебный пример',
+        text: 'Синтетическая новость: изменились условия поставок угля.',
+      },
+      {
+        id: 'news_fixture_retail',
+        title: 'Розничные продажи — учебный пример',
+        text: 'Синтетическая новость: изменился спрос в магазинах розничной торговли.',
+      },
+    ].map((n) => ({
+      ...n,
+      sourceId: 'fixture',
+      sourceName: 'Синтетический источник',
+      url: 'https://example.com/' + n.id,
+      publishedAt: '2026-10-21T00:00:00.000Z',
+      fetchedAt: '2026-10-21T00:00:00.000Z',
+    })),
   ])
 }

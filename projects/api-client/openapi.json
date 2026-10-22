@@ -3400,6 +3400,56 @@
                                 "items": {
                                   "type": "string"
                                 }
+                              },
+                              "version": {
+                                "type": "string"
+                              },
+                              "components": {
+                                "type": "object",
+                                "properties": {
+                                  "companyFit": {
+                                    "type": "number"
+                                  },
+                                  "perspectiveFit": {
+                                    "type": "number"
+                                  },
+                                  "freshness": {
+                                    "type": "number"
+                                  },
+                                  "sourceQuality": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "companyFit",
+                                  "perspectiveFit",
+                                  "freshness",
+                                  "sourceQuality"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "explanations": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "featureId": {
+                                      "type": "string"
+                                    },
+                                    "signal": {
+                                      "type": "string"
+                                    },
+                                    "weight": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "featureId",
+                                    "signal",
+                                    "weight"
+                                  ],
+                                  "additionalProperties": false
+                                }
                               }
                             },
                             "required": [
@@ -4138,6 +4188,56 @@
                               "items": {
                                 "type": "string"
                               }
+                            },
+                            "version": {
+                              "type": "string"
+                            },
+                            "components": {
+                              "type": "object",
+                              "properties": {
+                                "companyFit": {
+                                  "type": "number"
+                                },
+                                "perspectiveFit": {
+                                  "type": "number"
+                                },
+                                "freshness": {
+                                  "type": "number"
+                                },
+                                "sourceQuality": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "companyFit",
+                                "perspectiveFit",
+                                "freshness",
+                                "sourceQuality"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "explanations": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "featureId": {
+                                    "type": "string"
+                                  },
+                                  "signal": {
+                                    "type": "string"
+                                  },
+                                  "weight": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "featureId",
+                                  "signal",
+                                  "weight"
+                                ],
+                                "additionalProperties": false
+                              }
                             }
                           },
                           "required": [
@@ -4870,6 +4970,56 @@
                                 "type": "array",
                                 "items": {
                                   "type": "string"
+                                }
+                              },
+                              "version": {
+                                "type": "string"
+                              },
+                              "components": {
+                                "type": "object",
+                                "properties": {
+                                  "companyFit": {
+                                    "type": "number"
+                                  },
+                                  "perspectiveFit": {
+                                    "type": "number"
+                                  },
+                                  "freshness": {
+                                    "type": "number"
+                                  },
+                                  "sourceQuality": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "companyFit",
+                                  "perspectiveFit",
+                                  "freshness",
+                                  "sourceQuality"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "explanations": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "featureId": {
+                                      "type": "string"
+                                    },
+                                    "signal": {
+                                      "type": "string"
+                                    },
+                                    "weight": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "featureId",
+                                    "signal",
+                                    "weight"
+                                  ],
+                                  "additionalProperties": false
                                 }
                               }
                             },

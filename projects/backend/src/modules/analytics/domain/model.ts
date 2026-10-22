@@ -67,7 +67,19 @@ export type Insight = {
   status: 'complete' | 'partial' | 'insufficient_evidence'
   kind: 'risk' | 'opportunity' | 'context'
   event: { id: string; title: string; happenedAt: string | null; factClaimIds: string[] }
-  relevance: { score: number; rank: number; reasons: string[] }
+  relevance: {
+    score: number
+    rank: number
+    reasons: string[]
+    version?: string
+    components?: {
+      companyFit: number
+      perspectiveFit: number
+      freshness: number
+      sourceQuality: number
+    }
+    explanations?: { featureId: string; signal: string; weight: number }[]
+  }
   summary: string
   claims: Claim[]
   evidence: Evidence[]

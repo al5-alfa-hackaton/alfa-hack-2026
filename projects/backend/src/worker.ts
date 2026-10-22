@@ -1,5 +1,6 @@
 import { Queue, Worker } from 'bullmq'
 import { Redis } from 'ioredis'
+import { ExecutionError } from './modules/analytics/infrastructure/checkpoint-runtime.js'
 import { loadConfig } from './config.js'
 import { compose } from './composition/runtime.js'
 const config = loadConfig()
@@ -15,7 +16,7 @@ let dispatchTask: Promise<void> | undefined
 const worker = new Worker(
   'analysis-runs',
   async (job) => {
-    const run = await runtime.store.claim(job.id!)
+    const run = await runtime.store.claim(job.data.runId, job.data.version ?? 0)
     if (!run) return
     const controller = new AbortController()
     const timeout = setTimeout(
@@ -27,7 +28,7 @@ const worker = new Worker(
       if (ticking) return
       ticking = true
       void runtime.store
-        .heartbeat(run.id)
+        .heartbeat(run.id, run.leaseToken)
         .then((status) => {
           if (status !== 'running') controller.abort(new Error('cancelled'))
         })
@@ -43,17 +44,25 @@ const worker = new Worker(
           : users.find((u) => u.id === run.userId)
       if (!principal) throw new Error('scope_revoked')
       runtime.companies.context(principal, run.companyId)
-      const result = await runtime.agent.execute(run, controller.signal, (type, payload) =>
-        runtime.store.progress(run.id, type, payload),
+      const result = await runtime.agent.execute(
+        run,
+        controller.signal,
+        (type, payload) => runtime.store.progress(run.id, type, payload, run.leaseToken),
+        run.leaseToken,
       )
       controller.signal.throwIfAborted()
-      await runtime.store.finish(run.id, result)
+      await runtime.store.finish(run.id, result, undefined, run.leaseToken)
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
       await runtime.store.finish(
         run.id,
         undefined,
-        ['scope_revoked', 'run_timeout'].includes(message) ? message : 'agent_failed',
+        error instanceof ExecutionError
+          ? error.code
+          : ['scope_revoked', 'run_timeout'].includes(message)
+            ? message
+            : 'agent_failed',
+        run.leaseToken,
       )
     } finally {
       clearTimeout(timeout)
@@ -74,19 +83,28 @@ async function dispatch() {
   dispatching = true
   try {
     await runtime.store.recoverExpired()
+    // SQL is authoritative even if Redis loses an acknowledged job or an old worker skipped it.
+    for (const delivery of await runtime.store.deliveriesToReconcile()) {
+      const job = await queue.getJob(`${delivery.runId}-${delivery.version}`)
+      const state = await job?.getState()
+      if (!job || state === 'completed' || state === 'failed') {
+        if (job) await job.remove()
+        await runtime.store.rearmDelivery(delivery.runId, delivery.version)
+      }
+    }
     for (const row of await runtime.store.pending()) {
       await queue.add(
         'analyze',
-        { runId: row.runId },
+        { runId: row.runId, version: row.version },
         {
-          jobId: row.runId,
+          jobId: `${row.runId}-${row.version}`,
           attempts: 3,
           backoff: { type: 'exponential', delay: 2000 },
           removeOnComplete: 500,
           removeOnFail: 500,
         },
       )
-      await runtime.store.dispatched(row.runId)
+      await runtime.store.dispatched(row.runId, row.version)
     }
   } catch (error) {
     process.stderr.write(

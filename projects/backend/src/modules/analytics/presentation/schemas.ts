@@ -97,6 +97,18 @@ export const insightSchema = z.object({
     score: z.number().min(0).max(1),
     rank: z.number().int().nonnegative(),
     reasons: z.array(z.string()),
+    version: z.string().optional(),
+    components: z
+      .object({
+        companyFit: z.number(),
+        perspectiveFit: z.number(),
+        freshness: z.number(),
+        sourceQuality: z.number(),
+      })
+      .optional(),
+    explanations: z
+      .array(z.object({ featureId: z.string(), signal: z.string(), weight: z.number() }))
+      .optional(),
   }),
   summary: z.string().max(6000),
   claims: z.array(claimSchema).max(30),
