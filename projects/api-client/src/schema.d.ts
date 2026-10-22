@@ -1644,6 +1644,18 @@ export interface operations {
                                 score: number;
                                 rank: number;
                                 reasons: string[];
+                                version?: string;
+                                components?: {
+                                    companyFit: number;
+                                    perspectiveFit: number;
+                                    freshness: number;
+                                    sourceQuality: number;
+                                };
+                                explanations?: {
+                                    featureId: string;
+                                    signal: string;
+                                    weight: number;
+                                }[];
                             };
                             summary: string;
                             claims: {
@@ -1868,6 +1880,18 @@ export interface operations {
                                 score: number;
                                 rank: number;
                                 reasons: string[];
+                                version?: string;
+                                components?: {
+                                    companyFit: number;
+                                    perspectiveFit: number;
+                                    freshness: number;
+                                    sourceQuality: number;
+                                };
+                                explanations?: {
+                                    featureId: string;
+                                    signal: string;
+                                    weight: number;
+                                }[];
                             };
                             summary: string;
                             claims: {
@@ -2091,6 +2115,18 @@ export interface operations {
                                 score: number;
                                 rank: number;
                                 reasons: string[];
+                                version?: string;
+                                components?: {
+                                    companyFit: number;
+                                    perspectiveFit: number;
+                                    freshness: number;
+                                    sourceQuality: number;
+                                };
+                                explanations?: {
+                                    featureId: string;
+                                    signal: string;
+                                    weight: number;
+                                }[];
                             };
                             summary: string;
                             claims: {

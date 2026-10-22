@@ -44,13 +44,18 @@ it('executes the actual LangGraph/OpenAI adapter with scoped tools and validates
               n === 2
                 ? 'Исследование завершено.'
                 : JSON.stringify({
-                    claims: [
+                    events: [
                       {
-                        kind: 'fact',
-                        text: quote,
-                        companyFeatureIds: [],
-                        uncertainty: null,
-                        citations: [{ documentId: 'news_fixture', quote }],
+                        eventId: 'news_fixture',
+                        claims: [
+                          {
+                            kind: 'fact',
+                            text: quote,
+                            companyFeatureIds: [],
+                            uncertainty: null,
+                            citations: [{ documentId: 'news_fixture', quote }],
+                          },
+                        ],
                       },
                     ],
                   }),
@@ -113,4 +118,84 @@ it('executes the actual LangGraph/OpenAI adapter with scoped tools and validates
     certainty: 'unknown',
   })
   expect(result.insights[0]!.status).toBe('partial')
+})
+it('publishes multiple events in ranked order and rejects claims attached to the wrong event', async () => {
+  const data = await createData(loadConfig({ NODE_ENV: 'test' })),
+    catalog = new ResearchCatalog(data, 'fixture')
+  const news = data.news.find((n) => n.id === 'news_fixture')!,
+    steel = data.news.find((n) => n.id === 'news_fixture_steel')!
+  const claim = (n: typeof news) => ({
+    kind: 'fact',
+    text: n.text,
+    companyFeatureIds: [],
+    uncertainty: null,
+    citations: [{ documentId: n.id, quote: n.text }],
+  })
+  let requests = 0
+  const server = createServer(async (req, res) => {
+    for await (const _ of req) {
+    }
+    requests++
+    const content =
+      requests === 1
+        ? 'Анализ событий'
+        : JSON.stringify({
+            events: [
+              { eventId: steel.id, claims: [claim(steel)] },
+              { eventId: news.id, claims: [claim(news)] },
+              { eventId: 'news_fixture_retail', claims: [claim(news)] },
+            ],
+          })
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(
+      JSON.stringify({
+        id: `batch-${requests}`,
+        object: 'chat.completion',
+        created: 1,
+        model: 'deepseek/deepseek-v4.1-flash',
+        choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      }),
+    )
+  })
+  servers.push(server)
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Missing address')
+  const config = loadConfig({
+    NODE_ENV: 'test',
+    AGENT_PROVIDER: 'langgraph',
+    DATA_DIR: '/tmp/not-used',
+    LLM_BASE_URL: `http://127.0.0.1:${address.port}/v1`,
+    LLM_API_KEY: 'offline-only',
+    LLM_GATEWAY_REQUEST_CAP_RUB: '1',
+  })
+  const id = randomUUID(),
+    run: Run = {
+      id,
+      userId: 'test',
+      companyId: 'U_1',
+      perspective: 'cfo',
+      input: { companyId: 'U_1', perspective: 'cfo', kind: 'refresh_feed' },
+      status: 'running',
+      createdAt: '2026-10-22T12:00:00.000Z',
+      updatedAt: new Date().toISOString(),
+      resultIds: [],
+      error: null,
+      sequence: 1,
+      dataMode: 'research',
+    }
+  const result = await new LangGraphRuntime(config, catalog, data, {} as AnalyticsStore).execute(
+    run,
+    new AbortController().signal,
+    async () => {},
+  )
+  expect(result.insights.map((i) => i.event.id)).toEqual([news.id, steel.id])
+  expect(result.insights.map((i) => i.relevance.rank)).toEqual([1, 2])
+  expect(result.insights[0]!.relevance.score).toBeGreaterThan(result.insights[1]!.relevance.score)
+  expect(result.insights.every((i) => i.evidence.some((e) => e.documentId === i.event.id))).toBe(
+    true,
+  )
+  expect(requests).toBe(2)
 })

@@ -1,5 +1,10 @@
 import { createHash } from 'node:crypto'
-import { companyProfile, type DataContext } from '@alfa/research-agent'
+import {
+  companyProfile,
+  companyGroup,
+  companyCounterparties,
+  type DataContext,
+} from '@alfa/research-agent'
 import { AppError } from '../../../shared/kernel/errors.js'
 import type { CompanyCatalog, CompanyContext } from '../application/catalog.js'
 export class ResearchCatalog implements CompanyCatalog {
@@ -27,7 +32,46 @@ export class ResearchCatalog implements CompanyCatalog {
     const company = this.list().find((c) => c.id === id)
     if (!company) throw new AppError('not_found', 'Компания недоступна')
     const p = companyProfile(this.ctx, id)
+    const counterparties = companyCounterparties(this.ctx, id)
+    const relatedIndustries = (side: unknown) => {
+      const s = side as {
+        industriesReliable?: boolean
+        industriesByAmount?: { exampleName: string | null }[]
+      }
+      return s?.industriesReliable
+        ? s.industriesByAmount?.flatMap((i) => (i.exampleName ? [i.exampleName] : [])).join('; ') ||
+            null
+        : null
+    }
     const features = [
+      ...(['leasing', 'deposits', 'payroll', 'factoring'] as const).map((key) => ({
+        id: key,
+        label: {
+          leasing: 'Лизинг',
+          deposits: 'Депозиты',
+          payroll: 'Зарплатный проект',
+          factoring: 'Факторинг',
+        }[key],
+        value: p.company.products[key] === null ? null : String(p.company.products[key]),
+      })),
+      {
+        id: 'group_industries',
+        label: 'Отрасли участников группы',
+        value:
+          companyGroup(this.ctx, id)
+            .members.flatMap((m) => (m.okvedName ? [m.okvedName] : []))
+            .join('; ') || null,
+      },
+      {
+        id: 'supplier_industries',
+        label: 'Наблюдаемые отрасли поставщиков',
+        value: relatedIndustries(counterparties.suppliers),
+      },
+      {
+        id: 'customer_industries',
+        label: 'Наблюдаемые отрасли покупателей',
+        value: relatedIndustries(counterparties.customers),
+      },
       { id: 'industry', label: 'Отрасль', value: p.company.okvedName },
       {
         id: 'revenue',
@@ -48,7 +92,10 @@ export class ResearchCatalog implements CompanyCatalog {
     ]
     return {
       company,
-      profileVersion: createHash('sha256').update(JSON.stringify(p)).digest('hex').slice(0, 20),
+      profileVersion: createHash('sha256')
+        .update(JSON.stringify({ p, features }))
+        .digest('hex')
+        .slice(0, 20),
       corpusVersion: this.corpusVersion,
       dataMode: this.mode,
       features,

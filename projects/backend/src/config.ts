@@ -36,6 +36,8 @@ const schema = z.object({
     ])
     .default('deepseek/deepseek-v4.1-flash'),
   LLM_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(30000),
+  RUN_MAX_RECOVERIES: z.coerce.number().int().min(0).max(3).default(2),
+  RANKING_LIMIT: z.coerce.number().int().min(1).max(5).default(3),
   RUN_TIMEOUT_MS: z.coerce.number().int().min(1000).max(600000).default(180000),
   DAILY_BUDGET_RUB: z.coerce.number().min(0.01).multipleOf(0.01).max(500).default(500),
   RUN_RESERVATION_RUB: z.coerce.number().min(0.01).multipleOf(0.01).max(500).default(25),

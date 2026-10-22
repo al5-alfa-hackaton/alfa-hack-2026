@@ -1,3 +1,10 @@
+import { createServer } from 'node:http'
+import { LangGraphRuntime } from '../src/modules/analytics/infrastructure/agent-runtime.js'
+import { ResearchCatalog } from '../src/modules/companies/infrastructure/research-catalog.js'
+import { buildAgentGraph } from '@alfa/research-agent'
+import { AIMessage, HumanMessage } from '@langchain/core/messages'
+import { ScriptedModel, toolCall } from './scripted-model.js'
+import { createData } from '../src/composition/data.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { spawn, type ChildProcess } from 'node:child_process'
@@ -8,6 +15,11 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { and, eq, sql } from 'drizzle-orm'
 import { Queue } from 'bullmq'
 import { Redis } from 'ioredis'
+import {
+  CheckpointRuntime,
+  ExecutionError,
+  setupCheckpoints,
+} from '../src/modules/analytics/infrastructure/checkpoint-runtime.js'
 import { buildApp } from '../src/app.js'
 import { loadConfig } from '../src/config.js'
 import { compose, type Runtime } from '../src/composition/runtime.js'
@@ -71,6 +83,7 @@ describe.skipIf(!enabled)('PostgreSQL + Redis + actual worker', () => {
     const config = loadConfig(env)
     runtime = await compose(config)
     await migrate(runtime.database!.db, { migrationsFolder: 'drizzle' })
+    await setupCheckpoints(runtime.database!.pool)
     app = await buildApp(config, runtime)
     await app.ready()
     redis = new Redis(config.REDIS_URL, { maxRetriesPerRequest: null })
@@ -134,7 +147,7 @@ describe.skipIf(!enabled)('PostgreSQL + Redis + actual worker', () => {
     const id = [...ids][0] as string
     const run = await waitRun(id)
     expect(run.status).toBe('partial')
-    expect(run.resultIds).toHaveLength(1)
+    expect(run.resultIds.length).toBeGreaterThan(0)
     expect(
       await runtime.database!.db.select().from(t.outbox).where(eq(t.outbox.runId, id)),
     ).toHaveLength(1)
@@ -296,12 +309,419 @@ describe.skipIf(!enabled)('PostgreSQL + Redis + actual worker', () => {
       .where(eq(t.runs.id, run.id))
     await runtime.store.recoverExpired()
     const failed = await runtime.store.run(p, run.id)
-    expect(failed.status).toBe('failed')
-    expect(failed.error).toBe('worker_lost')
+    expect(failed.status).toBe('queued')
+    const resumed = await waitRun(run.id)
+    expect(resumed.status).toBe('partial')
     const [budget] = await runtime.database!.db.select().from(t.budgets)
     expect(budget!.reserved).toBe(0)
     expect(budget!.spent).toBeGreaterThanOrEqual(1)
   })
+  it('persists graph steps/tools/finalization in PostgreSQL and resumes with a new lease', async () => {
+    await queue.pause()
+    try {
+      const p = { id: 'alice', companyIds: ['U_1'] }
+      const input = { companyId: 'U_1', perspective: 'cfo' as const, kind: 'refresh_feed' as const }
+      const run = await runtime.store.createRun(
+        p,
+        input,
+        randomUUID(),
+        randomUUID(),
+        0,
+        500,
+        'fixture',
+      )
+      const claimed = (await runtime.store.claim(run.id))!
+      const persistence = new CheckpointRuntime(runtime.database!.pool, 8).forRun(
+        claimed,
+        claimed.leaseToken,
+      )
+      await persistence.bindScope('checkpoint-test-v1')
+      const ctx = await createData(loadConfig({ NODE_ENV: 'test' })),
+        audit: import('@alfa/research-agent').ToolCallRecord[] = []
+      const firstModel = new ScriptedModel([toolCall()])
+      const scope = {
+        configurable: { thread_id: run.id, companyId: run.companyId },
+        durability: 'sync' as const,
+      }
+      const graph = buildAgentGraph({
+        ctx,
+        model: firstModel,
+        limits: { maxSteps: 4, maxToolCalls: 6 },
+        checkpointer: persistence.checkpointer,
+        invokeModel: (...args) => persistence.call(...args),
+        interruptAfter: ['tools'],
+        audit,
+      })
+      await graph.invoke(
+        { messages: [new HumanMessage('Проверь компанию')], executionScope: 'checkpoint-test-v1' },
+        scope,
+      )
+      const snapshot = await graph.getState(scope)
+      expect(snapshot.next).toContain('agent')
+      expect(snapshot.values.steps).toBe(1)
+      expect(audit).toHaveLength(1)
+      await runtime
+        .database!.db.update(t.runs)
+        .set({ leaseUntil: new Date(Date.now() - 1000) })
+        .where(eq(t.runs.id, run.id))
+      await runtime.store.recoverExpired()
+      const next = (await runtime.store.claim(run.id, 1))!
+      expect(next.leaseToken).not.toBe(claimed.leaseToken)
+      await expect(
+        persistence.checkpointer.putWrites(snapshot.config, [['steps', 999]], 'stale'),
+      ).rejects.toThrow('lease_lost')
+      await runtime.store.finish(run.id, { insights: [] }, undefined, claimed.leaseToken)
+      expect((await runtime.store.run(p, run.id)).status).toBe('running')
+      const resumedPersistence = new CheckpointRuntime(runtime.database!.pool, 8).forRun(
+        next,
+        next.leaseToken,
+      )
+      await resumedPersistence.bindScope('checkpoint-test-v1')
+      await expect(resumedPersistence.bindScope('different-company-or-corpus')).rejects.toThrow(
+        'execution_context_changed',
+      )
+      const secondModel = new ScriptedModel([new AIMessage('Готовый анализ')])
+      let finalized = 0
+      const resumed = buildAgentGraph({
+        ctx,
+        model: secondModel,
+        limits: { maxSteps: 4, maxToolCalls: 6 },
+        checkpointer: resumedPersistence.checkpointer,
+        invokeModel: (...args) => resumedPersistence.call(...args),
+        finalize: async () => {
+          finalized++
+          return new AIMessage('{"events":[]}')
+        },
+        audit,
+      })
+      const result = await resumed.invoke(null, scope)
+      expect(result.steps).toBe(2)
+      expect(result.stopReason).toBe('answered')
+      expect(result.structured?.content).toBe('{"events":[]}')
+      expect(audit).toHaveLength(1)
+      expect(firstModel.calls).toBe(1)
+      expect(secondModel.calls).toBe(1)
+      expect(finalized).toBe(1)
+      const reopened = buildAgentGraph({
+        ctx,
+        model: new ScriptedModel([]),
+        limits: { maxSteps: 4, maxToolCalls: 6 },
+        checkpointer: new CheckpointRuntime(runtime.database!.pool, 8).forRun(next, next.leaseToken)
+          .checkpointer,
+        finalize: async () => {
+          throw new Error('Finalization replayed')
+        },
+      })
+      expect((await reopened.invoke(null, scope)).structured?.content).toBe('{"events":[]}')
+      await runtime.store.finish(run.id, { insights: [] }, undefined, next.leaseToken)
+    } finally {
+      await queue.resume()
+    }
+  })
+  it('reuses a durable model response when the worker fails before the next node checkpoint', async () => {
+    await queue.pause()
+    try {
+      const p = { id: 'alice', companyIds: ['U_1'] },
+        input = { companyId: 'U_1', perspective: 'cfo' as const, kind: 'refresh_feed' as const }
+      const run = await runtime.store.createRun(
+          p,
+          input,
+          randomUUID(),
+          randomUUID(),
+          0,
+          500,
+          'fixture',
+        ),
+        first = (await runtime.store.claim(run.id))!
+      const durable = new CheckpointRuntime(runtime.database!.pool, 8).forRun(
+        first,
+        first.leaseToken,
+      )
+      await durable.bindScope('response-cache-test')
+      const ctx = await createData(loadConfig({ NODE_ENV: 'test' })),
+        firstModel = new ScriptedModel([toolCall()])
+      const scope = {
+        configurable: { thread_id: run.id, companyId: run.companyId },
+        durability: 'sync' as const,
+      }
+      const initial = buildAgentGraph({
+        ctx,
+        model: firstModel,
+        limits: { maxSteps: 4, maxToolCalls: 6 },
+        checkpointer: durable.checkpointer,
+        invokeModel: async (...args) => {
+          await durable.call(...args)
+          throw new Error('simulated-worker-crash-before-checkpoint')
+        },
+      })
+      await expect(
+        initial.invoke(
+          { messages: [new HumanMessage('Анализ')], executionScope: 'response-cache-test' },
+          scope,
+        ),
+      ).rejects.toThrow('simulated-worker-crash')
+      await runtime
+        .database!.db.update(t.runs)
+        .set({ leaseUntil: new Date(Date.now() - 1000) })
+        .where(eq(t.runs.id, run.id))
+      await runtime.store.recoverExpired()
+      const second = (await runtime.store.claim(run.id, 1))!
+      const resumed = new CheckpointRuntime(runtime.database!.pool, 8).forRun(
+        second,
+        second.leaseToken,
+      )
+      await resumed.bindScope('response-cache-test')
+      const model = new ScriptedModel([new AIMessage('Финальный ответ')])
+      const graph = buildAgentGraph({
+        ctx,
+        model,
+        limits: { maxSteps: 4, maxToolCalls: 6 },
+        checkpointer: resumed.checkpointer,
+        invokeModel: (...args) => resumed.call(...args),
+      })
+      const result = await graph.invoke(null, scope)
+      expect(result.steps).toBe(2)
+      expect(firstModel.calls + model.calls).toBe(2)
+      expect(
+        await runtime
+          .database!.db.select()
+          .from(t.modelCalls)
+          .where(eq(t.modelCalls.runId, run.id)),
+      ).toHaveLength(2)
+      await runtime.store.finish(run.id, { insights: [] }, undefined, second.leaseToken)
+    } finally {
+      await queue.resume()
+    }
+  })
+  it('fails closed for an ambiguous paid call without releasing its consumed reservation', async () => {
+    await queue.pause()
+    try {
+      const p = { id: 'alice', companyIds: ['U_1'] },
+        input = { companyId: 'U_1', perspective: 'ceo' as const, kind: 'refresh_feed' as const }
+      const run = await runtime.store.createRun(
+          p,
+          input,
+          randomUUID(),
+          randomUUID(),
+          1,
+          500,
+          'fixture',
+        ),
+        claimed = (await runtime.store.claim(run.id))!
+      const durable = new CheckpointRuntime(runtime.database!.pool, 8).forRun(
+        claimed,
+        claimed.leaseToken,
+      )
+      await durable.bindScope('uncertain-call-test')
+      let requests = 0
+      await expect(
+        durable.call(
+          'agent:0',
+          async () => {
+            requests++
+            throw new Error('connection-lost')
+          },
+          [new HumanMessage('Вопрос')],
+        ),
+      ).rejects.toThrow('connection-lost')
+      await expect(
+        durable.call(
+          'agent:0',
+          async () => {
+            requests++
+            return new AIMessage('duplicate')
+          },
+          [new HumanMessage('Вопрос')],
+        ),
+      ).rejects.toThrow('model_call_uncertain')
+      expect(requests).toBe(1)
+      await runtime
+        .database!.db.update(t.runs)
+        .set({ leaseUntil: new Date(Date.now() - 1000) })
+        .where(eq(t.runs.id, run.id))
+      await runtime.store.recoverExpired()
+      const failed = await runtime.store.run(p, run.id)
+      expect(failed.status).toBe('failed')
+      expect(failed.error).toBe('model_call_uncertain')
+    } finally {
+      await queue.resume()
+    }
+  })
+  it('restores the complete backend batch after a crash before publication without another provider request', async () => {
+    await queue.pause()
+    const ctx = await createData(loadConfig({ NODE_ENV: 'test' })),
+      news = ctx.news[0]!
+    let calls = 0
+    const server = createServer(async (req, res) => {
+      for await (const _ of req) {
+      }
+      calls++
+      const content =
+        calls === 1
+          ? 'Исследование'
+          : JSON.stringify({
+              events: [
+                {
+                  eventId: news.id,
+                  claims: [
+                    {
+                      kind: 'fact',
+                      text: news.text,
+                      companyFeatureIds: [],
+                      uncertainty: null,
+                      citations: [{ documentId: news.id, quote: news.text }],
+                    },
+                  ],
+                },
+              ],
+            })
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          id: `resume-${calls}`,
+          object: 'chat.completion',
+          created: 1,
+          model: 'deepseek/deepseek-v4.1-flash',
+          choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+        }),
+      )
+    })
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    try {
+      const address = server.address()
+      if (!address || typeof address === 'string') throw new Error('Missing address')
+      const config = loadConfig({
+        NODE_ENV: 'test',
+        AGENT_PROVIDER: 'langgraph',
+        DATA_DIR: '/tmp/not-used',
+        LLM_BASE_URL: `http://127.0.0.1:${address.port}/v1`,
+        LLM_API_KEY: 'offline-only',
+        LLM_GATEWAY_REQUEST_CAP_RUB: '1',
+      })
+      const p = { id: 'alice', companyIds: ['U_1'] },
+        input = { companyId: 'U_1', perspective: 'cfo' as const, kind: 'refresh_feed' as const }
+      const run = await runtime.store.createRun(
+          p,
+          input,
+          randomUUID(),
+          randomUUID(),
+          1,
+          500,
+          'research',
+        ),
+        claimed = (await runtime.store.claim(run.id))!
+      const makeRuntime = () =>
+        new LangGraphRuntime(
+          config,
+          new ResearchCatalog(ctx, 'research'),
+          ctx,
+          runtime.store,
+          new CheckpointRuntime(runtime.database!.pool, 8),
+        )
+      const first = await makeRuntime().execute(
+        claimed,
+        new AbortController().signal,
+        async () => {},
+        claimed.leaseToken,
+      )
+      expect(first.insights).toHaveLength(1)
+      expect(calls).toBe(2)
+      // Crash after durable finalization, before the SQL publication transaction.
+      await runtime
+        .database!.db.update(t.runs)
+        .set({ leaseUntil: new Date(Date.now() - 1000) })
+        .where(eq(t.runs.id, run.id))
+      await runtime.store.recoverExpired()
+      const lease = (await runtime.store.claim(run.id, 1))!
+      const resumed = await makeRuntime().execute(
+        lease,
+        new AbortController().signal,
+        async () => {},
+        lease.leaseToken,
+      )
+      expect(calls).toBe(2)
+      expect(resumed.insights[0]!.summary).toBe(first.insights[0]!.summary)
+      expect(resumed.insights[0]!.usage).toEqual(first.insights[0]!.usage)
+      await runtime.store.finish(run.id, resumed, undefined, lease.leaseToken)
+      await runtime.store.finish(run.id, resumed, undefined, lease.leaseToken)
+      const published = await runtime.store.run(p, run.id)
+      expect(published.status).toBe('partial')
+      expect(published.resultIds).toHaveLength(1)
+      expect(
+        await runtime.database!.db.select().from(t.insights).where(eq(t.insights.runId, run.id)),
+      ).toHaveLength(1)
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+      await queue.resume()
+    }
+  })
+  it('charges an already started run when cancellation happens during recovery', async () => {
+    await queue.pause()
+    try {
+      const p = { id: 'alice', companyIds: ['U_1'] },
+        input = { companyId: 'U_1', perspective: 'ceo' as const, kind: 'refresh_feed' as const }
+      const [before] = await runtime.database!.db.select().from(t.budgets)
+      const run = await runtime.store.createRun(
+          p,
+          input,
+          randomUUID(),
+          randomUUID(),
+          2,
+          500,
+          'research',
+        ),
+        claim = (await runtime.store.claim(run.id))!
+      const durable = new CheckpointRuntime(runtime.database!.pool, 8).forRun(
+        claim,
+        claim.leaseToken,
+      )
+      await durable.call('agent:0', async () => new AIMessage('cached'), [
+        new HumanMessage('question'),
+      ])
+      await runtime
+        .database!.db.update(t.runs)
+        .set({ leaseUntil: new Date(Date.now() - 1000) })
+        .where(eq(t.runs.id, run.id))
+      await runtime.store.recoverExpired()
+      expect((await runtime.store.run(p, run.id)).status).toBe('queued')
+      expect((await runtime.store.cancel(p, run.id)).status).toBe('cancelled')
+      const [after] = await runtime.database!.db.select().from(t.budgets)
+      expect(after!.spent - before!.spent).toBe(2)
+    } finally {
+      await queue.resume()
+    }
+  })
+  it('reconciles a lost Redis delivery from the durable SQL outbox', async () => {
+    await queue.pause()
+    let runId = ''
+    try {
+      const accepted = (await start(randomUUID())).json()
+      runId = accepted.runId
+      const jobId = `${runId}-0`
+      for (let n = 0; n < 40; n++) {
+        if (await queue.getJob(jobId)) break
+        await delay(50)
+      }
+      const original = await queue.getJob(jobId)
+      expect(original).toBeDefined()
+      await original!.remove()
+      await runtime
+        .database!.db.update(t.outbox)
+        .set({ publishedAt: new Date(Date.now() - 10000) })
+        .where(eq(t.outbox.runId, runId))
+      for (let n = 0; n < 40; n++) {
+        if (await queue.getJob(jobId)) break
+        await delay(50)
+      }
+      expect(await queue.getJob(jobId)).toBeDefined()
+    } finally {
+      await queue.resume()
+    }
+    expect((await waitRun(runId)).status).toBe('partial')
+  }, 15000)
   it('checks readiness against the migrated database and Redis', async () => {
     expect((await app.inject('/ready')).statusCode).toBe(200)
   })

@@ -24,6 +24,8 @@ Fixture-проверки не означают выполненный платн
 
 [10-backend-implementation.md](10-backend-implementation.md) — исполняемый backend, модульная архитектура, генерация контрактов, auth, очередь и воспроизводимые проверки.
 
+[11-ranking-and-checkpoints.md](11-ranking-and-checkpoints.md) — ранжирование нескольких событий, durable LangGraph checkpoints, lease fencing, recovery и journal платных вызовов.
+
 ## Решения
 
 1. Сохраняем React/TanStack Start/shadcn, Fastify/Drizzle/PostgreSQL и pnpm.

@@ -2,6 +2,8 @@
 
 Основа — [архитектура пользователя](source/fastify-modular-clean-architecture.md), продуктовые требования, API-план и код `research/agent`. Этот документ описывает исполняемое состояние; требования следующих этапов остаются в 04–08.
 
+> Обновлено: [ранжирование и checkpoints реализованы](11-ranking-and-checkpoints.md). Ниже — базовая реализация и ее актуализированные ограничения.
+
 ## Модули и зависимости
 
 ```text
@@ -41,15 +43,15 @@ projects/backend/src/
 
 ## SQL, очередь и согласованность
 
-Миграция создает восемь таблиц: `analysis_runs`, `run_events`, `run_outbox`, `daily_budgets`, `insights`, `feed_snapshots`, `insight_user_states`, `conversation_messages`. SQL constraints защищают ключи, FK, status и неотрицательный бюджет.
+Drizzle-миграции создают девять таблиц: `analysis_runs`, `run_events`, `run_outbox`, `daily_budgets`, `insights`, `feed_snapshots`, `insight_user_states`, `conversation_messages`, `agent_model_calls`. Native saver отдельно создает таблицы в `agent_checkpoints`. SQL constraints защищают ключи, FK, status и неотрицательный бюджет.
 
 Создание run, budget reservation, первое событие, outbox и user question атомарны. Advisory lock + UNIQUE(user, idempotency key) защищают конкурентные одинаковые запросы; другое тело с тем же ключом дает 409. Параметризованные Drizzle/SQL запросы не интерполируют пользовательский SQL.
 
-Worker — отдельный процесс того же backend-пакета. Dispatcher публикует outbox в BullMQ с `jobId=runId`; повторная доставка не запускает уже claimed run. Повтор транспорта допускается до claim; **модель автоматически заново не запускается**. Lease 45 секунд, heartbeat 500 мс, watchdog закрывает потерянный run как `failed/worker_lost`. Runtime timeout по умолчанию 180 секунд. Redis настроен с AOF и `noeviction`.
+Worker — отдельный процесс того же backend-пакета. Dispatcher публикует outbox в BullMQ с `jobId=runId-generation`; повторная доставка не запускает уже claimed run. Повтор транспорта допускается до claim; **модель автоматически заново не запускается**. Lease 45 секунд, heartbeat 500 мс, watchdog восстанавливает безопасный run, а при неизвестном paid call или исчерпанном recovery limit завершает его с явной ошибкой. Runtime timeout по умолчанию 180 секунд. Redis настроен с AOF и `noeviction`.
 
 Отмена queued run сразу освобождает резерв; running → cancelling → cancelled через AbortSignal. Публикация и отмена конкурируют за row lock. Результат, snapshot и terminal event публикуются одной транзакцией; более старый завершившийся refresh не заменяет более новый. Старая сводка сохраняется при ошибке/отмене; saved версии доступны после следующих refresh. События получают монотонный sequence и поддерживают SSE replay, Last-Event-ID и heartbeat. Поллинг — полноценный fallback.
 
-Графовые checkpoints между отдельными model calls пока не сохраняются. После падения worker нельзя продолжить с середины графа: run завершается с ошибкой, резерв считается израсходованным. SQL-долговечность lifecycle не следует называть resumable LangGraph checkpoints.
+Графовые checkpoints теперь сохраняются через PostgreSQL PostgresSaver; безопасные потерянные runs автоматически восстанавливаются. Journal ответов предотвращает повторные платные вызовы после сохраненного ответа. Неизвестный исход запроса завершает run как model_call_uncertain. [Подробная семантика](11-ranking-and-checkpoints.md).
 
 ## Research и публикация
 
@@ -59,7 +61,7 @@ Worker — отдельный процесс того же backend-пакета.
 
 Банк без подтвержденных материалов имеет статус missing; старше 90 дней — stale (MVP policy). Source resolver с локальными путями не используется. Документы выдаются только после проверки связанного разрешенного insight; image route принимает ID и номер страницы, а не filename. Логи/trace не содержат prompts, raw arguments, provider tokens или private reasoning.
 
-Ранжирование пока не калибровано: один разбор на refresh, score=0 явно не выдается за обученную релевантность. Обнаружение множества событий, метрики relevance, temporal reconciliation и независимая экспертная оценка — следующий этап. Фильтр периода задается агенту, но требует дальнейшей программной проверки дат при публикации.
+Ранжирование по явным правилам выбирает несколько событий до LLM: профиль, perspective, свежесть, качество источника, period. Score/components/explanations/version сохранены в DTO. Обучение/калибровка на реальном holdout и экспертная оценка остаются следующим этапом.
 
 ## Auth и бюджет
 
@@ -98,14 +100,14 @@ pnpm contracts:check
 
 Integration создает собственную временную БД и уникальный Redis queue prefix, применяет реальные миграции, поднимает отдельный worker и очищает только свои ресурсы. TEST_DATABASE_URL должен указывать на local admin database с CREATE DATABASE. Обычный `pnpm test` пропускает инфраструктурные тесты; платные вызовы не выполняются. Локальный OpenAI-compatible fake gateway проверяет реальный LangGraph/OpenAI adapter с tool calling, usage и final validation.
 
-Перед production нужны OIDC/session, SQL membership, gateway quota contract, реальный corpus и live smoke, ingestion/version rollout, графовые checkpoints, retention/backup/metrics, нагрузочные проверки, улучшение ranking и полное подключение frontend. Текущий Dockerfile — dev image.
+Перед production нужны OIDC/session, SQL membership, gateway quota contract, реальный corpus и live smoke, ingestion/version rollout, retention/backup/metrics для checkpoints и model journal, нагрузочные проверки, улучшение ranking и полное подключение frontend. Текущий Dockerfile — dev image.
 
 ## Результаты проверки этой реализации
 
 - Typecheck всех пакетов и автоматические проверки границ слоев — проходят.
-- 26 офлайн-тестов: 9 frontend, 7 backend, 10 research.
-- 8 integration-тестов с PostgreSQL/Redis и отдельным worker — проходят.
-- 16 Playwright-сценариев, включая typed API → очередь → worker → SQL, — проходят.
+- 36 офлайн-тестов: 9 frontend, 17 backend, 10 research.
+- 14 integration-тестов с PostgreSQL/Redis и отдельным worker — проходят.
+- 17 Playwright-сценариев, включая typed API → очередь → worker → SQL, — проходят.
 - `pnpm build` и `pnpm contracts:check` — проходят; OpenAPI содержит 18 paths / 19 operations.
 - Docker-образ собран, контейнер API проверен через реальный HTTP → очередь → worker → SQL. Полный одновременный Compose smoke уперся в размер writable layers Docker VFS в этой cloud-среде; исходники/SQL volumes сохранены, временные app-контейнеры и build cache убраны. Для всех процессов в Compose используется один общий image.
 - Платный live gateway, полный исходный corpus и production SSO не проверялись. GitHub Actions workflow добавлен; локальная проверка не выдается за уже завершившийся remote CI.

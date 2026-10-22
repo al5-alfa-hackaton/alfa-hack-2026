@@ -45,5 +45,6 @@ export interface AgentRuntime {
     run: Run,
     signal: AbortSignal,
     progress: (type: string, payload: Record<string, unknown>) => Promise<void>,
+    leaseToken?: string,
   ): Promise<AgentResult>
 }

@@ -31,6 +31,9 @@ export const runs = pgTable(
     dataMode: text('data_mode', { enum: ['fixture', 'research'] }).notNull(),
     budgetDay: text('budget_day').notNull(),
     reservation: numeric('reservation', { precision: 10, scale: 4, mode: 'number' }).notNull(),
+    leaseToken: text('lease_token'),
+    attempt: integer('attempt').notNull().default(0),
+    executionScope: text('execution_scope'),
     leaseUntil: timestamp('lease_until', { withTimezone: true }),
   },
   (t) => [
@@ -58,6 +61,7 @@ export const events = pgTable(
   (t) => [primaryKey({ columns: [t.runId, t.sequence] })],
 )
 export const outbox = pgTable('run_outbox', {
+  version: integer('version').notNull().default(0),
   runId: text('run_id')
     .primaryKey()
     .references(() => runs.id, { onDelete: 'cascade' }),
@@ -126,4 +130,19 @@ export const messages = pgTable(
     at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('message_run_author').on(t.runId, t.author)],
+)
+
+export const modelCalls = pgTable(
+  'agent_model_calls',
+  {
+    runId: text('run_id')
+      .notNull()
+      .references(() => runs.id, { onDelete: 'cascade' }),
+    callKey: text('call_key').notNull(),
+    requestHash: text('request_hash').notNull(),
+    response: jsonb('response'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (t) => [primaryKey({ columns: [t.runId, t.callKey] })],
 )
