@@ -10,4 +10,5 @@
 **/*.log
 .pnpm-store
 specs
-research
+research/agent/results
+research/agent/test

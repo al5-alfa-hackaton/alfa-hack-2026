@@ -7,22 +7,39 @@
     "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node --env-file-if-exists=.env dist/server.js",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "pnpm check:architecture && tsc --noEmit",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "worker": "tsx --env-file-if-exists=.env src/worker.ts",
+    "worker:start": "node --env-file-if-exists=.env dist/worker.js",
+    "contracts:generate": "tsx scripts/generate-contract.ts",
+    "check:architecture": "node scripts/check-architecture.mjs",
+    "test:integration": "vitest run test/integration.test.ts"
   },
   "dependencies": {
+    "@alfa/research-agent": "workspace:*",
     "@fastify/cors": "11.3.1",
+    "@fastify/helmet": "^13.2.0",
+    "@fastify/rate-limit": "^11.2.1",
+    "@fastify/swagger": "^9.9.2",
+    "@fastify/swagger-ui": "^6.1.2",
+    "@langchain/core": "1.2.13",
+    "@langchain/langgraph": "1.4.18",
+    "@langchain/openai": "1.6.0",
+    "bullmq": "^6.4.0",
     "drizzle-orm": "0.45.4",
+    "fastify": "5.12.7",
+    "fastify-type-provider-zod": "^7.0.0",
+    "ioredis": "^6.0.0",
     "pg": "8.23.1",
-    "zod": "4.6.7",
-    "fastify": "5.12.7"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/pg": "8.23.1",
     "drizzle-kit": "0.31.11",
+    "openapi-typescript": "^7.13.0",
     "tsx": "4.23.15",
     "vitest": "5.0.5"
   }
