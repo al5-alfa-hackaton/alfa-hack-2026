@@ -11,7 +11,10 @@ export default defineConfig({
   },
   plugins: [
     tailwindcss(),
-    tanstackStart(),
+    tanstackStart({
+      srcDirectory: 'src/app',
+      router: { routesDirectory: 'routes', generatedRouteTree: 'route-tree.gen.ts' },
+    }),
     react(),
     nitro({
       routeRules: {

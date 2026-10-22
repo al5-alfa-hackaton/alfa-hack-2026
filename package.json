@@ -11,7 +11,7 @@
     "dev": "pnpm --parallel --filter @alfa/frontend --filter @alfa/backend dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm --filter @alfa/backend test",
+    "test": "pnpm -r --if-present test",
     "db:generate": "pnpm --filter @alfa/backend db:generate",
     "db:migrate": "pnpm --filter @alfa/backend db:migrate",
     "infra:up": "docker compose up -d postgres",
@@ -19,7 +19,8 @@
     "ui:add": "pnpm --filter @alfa/frontend exec shadcn add"
   },
   "devDependencies": {
-    "typescript": "5.9.3",
-    "@types/node": "26.6.5"
+    "@types/node": "26.6.5",
+    "prettier": "^3.9.10",
+    "typescript": "5.9.3"
   }
 }
