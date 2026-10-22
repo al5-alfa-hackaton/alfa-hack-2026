@@ -1,5 +1,6 @@
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
+import { ThemeProvider } from 'next-themes'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import styles from '@/styles.css?url'
@@ -9,7 +10,7 @@ export const Route = createRootRoute({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'Новостная аналитика — шаблон' },
+      { title: 'Альфа Бизнес — Новостная аналитика' },
     ],
     links: [{ rel: 'stylesheet', href: styles }],
   }),
@@ -19,11 +20,13 @@ export const Route = createRootRoute({
 
 function RootDocument({ children }: { children: ReactNode }) {
   return (
-    <html lang="ru">
+    <html lang="ru" suppressHydrationWarning>
       <head><HeadContent /></head>
       <body>
-        <TooltipProvider>{children}</TooltipProvider>
-        <Toaster />
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+          <TooltipProvider>{children}</TooltipProvider>
+          <Toaster />
+        </ThemeProvider>
         <Scripts />
       </body>
     </html>
