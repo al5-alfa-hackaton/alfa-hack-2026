@@ -1,122 +1,153 @@
-# Новостная аналитика — Alfa Hack 2026
+# Новостная аналитика · Альфа Бизнес
 
-Шаблон pnpm-монорепозитория для персонализированных бизнес-инсайтов. Сейчас здесь только основа приложений; аналитика, агент и предметный интерфейс не реализованы.
+События рынка в контексте конкретной компании: что произошло, почему это важно, где риски и на чем основан вывод.
 
-```text
-specs/                 требования из PDF, архитектура и план реализации
-projects/frontend/     React + TanStack Start + полный набор shadcn/ui
-projects/backend/      Fastify + Drizzle ORM + PostgreSQL adapter
-research/              пустая папка для будущих skills, agent-команд и MCP
-```
+[![Персональная сводка событий](docs/screenshots/feed-desktop.png)](docs/screenshots/feed-desktop.png)
 
-Начните со [спецификаций](specs/README.md). Исходный [PDF кейса](specs/source/brief.pdf) сохранен вместе с ними. Требования PDF отделены от выбранных технических решений и открытых вопросов.
+**Интерактивное демо:** две учебные компании, два аналитических ракурса, шесть событий. Frontend работает целиком в браузере. Исследовательский агент в `research/agent` запускается отдельно; его соединение с API и интерфейсом еще предстоит реализовать. Вымышленные показатели и тексты не являются данными клиента или позицией Альфа-Банка.
 
-## Окружение
+[Быстрый запуск](#запуск) · [Сценарий проверки](#что-попробовать) · [Архитектура](specs/07-frontend-architecture.md) · [Нужные API](specs/05-api-and-ui.md) · [Research](research/agent/README.md)
 
-- Node.js **24.19.0** (`.node-version`), pnpm **11.25.0** (`packageManager`).
-- Docker с Compose — для PostgreSQL и контейнерного запуска. Для пустой оболочки база опциональна.
-- При отсутствии pnpm: `npm install --global pnpm@11.25.0`. Зависимости зафиксированы в `pnpm-lock.yaml`.
+## От события к решению
 
-## Локальный запуск
+В ленте сразу видно влияние на бизнес и признак, из-за которого событие попало в сводку. Разбор отделяет факт, интерпретацию, позицию банка и пробелы данных. Источники, уточняющие вопросы и обратная связь находятся рядом с результатом.
 
-Из корня репозитория:
+[![Разбор влияния события](docs/screenshots/insight-reader.png)](docs/screenshots/insight-reader.png)
+
+<details>
+<summary>Источники, уточнение, профиль компании и мобильная версия</summary>
+
+### Первоисточники
+
+![Источники с учебными фрагментами](docs/screenshots/sources.png)
+
+### Вопрос в контексте события
+
+![Уточняющий диалог](docs/screenshots/conversation.png)
+
+### Профиль и границы данных
+
+![Контекст компании](docs/screenshots/company-desktop.png)
+
+### Мобильная сводка
+
+<img src="docs/screenshots/feed-mobile.png" alt="Мобильная версия: компания, фильтры, событие и объяснение влияния" width="390" />
+
+### Темная тема
+
+![Темная тема](docs/screenshots/feed-dark.png)
+
+</details>
+
+Снимки сделаны Chromium с работающего приложения, без дорисовки интерфейса. Все показанные компании и события — synthetic fixtures. [Повторить съемку](#скриншоты).
+
+## Запуск
+
+Node.js **24.19.0**, pnpm **11.25.0**. Версии: `.node-version`, `packageManager`, `pnpm-lock.yaml`.
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm dev
+pnpm --filter @alfa/frontend dev
 ```
 
-Frontend — порт 3000, Fastify — 3001. Nitro направляет `/api/*` в Fastify, удаляя префикс `/api`. Страница пока показывает только каркас проекта.
+Frontend слушает порт **3000**. Для демо не нужны backend, PostgreSQL, API key или исходные CSV. При отсутствии pnpm: `npm install --global pnpm@11.25.0`.
 
-Подключение к базе:
+Оба сервиса: `pnpm dev`. Для базы:
 
 ```sh
 pnpm infra:up
+# Только если файла еще нет; существующую конфигурацию не перезаписывать.
 cp projects/backend/.env.example projects/backend/.env
 pnpm dev
 ```
 
-Не перезаписывайте уже заполненный `.env`. Команды backend читают `.env` из `projects/backend`, а не из корня. Локальные credentials в примере и compose предназначены только для разработки.
+Backend — **3001**. Nitro проксирует `/api/*` в Fastify, снимая `/api`; `API_PROXY_TARGET` задается при dev-запуске или сборке frontend. Сейчас приложение не вызывает предметный API.
+
+## Что попробовать
+
+1. Откройте ленту «Север Металл» в роли финансового директора. Разберите первое событие и откройте его источники.
+2. Перейдите во вкладку «Вопросы», спросите о рисках, оцените полезность и оставьте замечание. В демо ответы сценарные, не от LLM.
+3. Сохраните событие, откройте «Сохранённое», обновите страницу. Состояние останется в этом браузере.
+4. Смените компанию на «Город Маркет»: изменятся порядок и объяснения. Чужие сохранения/диалоги не появятся. Аналогично проверьте роль генерального директора.
+5. Обновите сводку, отмените запуск и откройте историю. Через кнопку «Сценарии демо» проверьте partial, empty, error, budget и denied; после ошибки можно вернуться к обычному анализу.
+6. Поиск учитывает заголовок, категорию и причину релевантности. Ctrl/Cmd+K переводит в поиск. TXT-экспорт содержит только отфильтрованные события.
+7. Прямая ссылка `/?insight=rate` открывает разбор; Escape закрывает его и возвращает фокус. На телефоне навигация открывается из верхней панели.
+
+Маршруты: `/`, `/saved`, `/company`, `/history`, `/ui-kit`. Компания, аналитическая роль, saved, chats, ratings, remarks и история изолированы по scope и валидируются Zod при восстановлении из localStorage. Плохое/недоступное хранилище отображается явно. Local storage **не является авторизацией**.
+
+## Устройство репозитория
+
+```text
+projects/
+  frontend/src/
+    app/              routing, providers, styles
+    pages/            композиция экранов
+    blocks/           законченные пользовательские сценарии
+    components/       shadcn/ui и generic-компоненты
+    entities/         company, insight, analysis, workspace
+    shared/           технические hooks/lib
+  backend/            Fastify, Drizzle, пустая предметная схема
+research/agent/       CSV/RSS/OCR, BM25, tools, собственный LangGraph-агент
+specs/                продукт, данные, API и план интеграции
+docs/screenshots/     снимки и инструкции воспроизведения
+```
+
+Архитектура клиента: [правила и границы](specs/07-frontend-architecture.md). Нижний слой не импортирует верхний; модули используют публичные index.ts, страницы не импортируют друг друга, runtime-циклы запрещены. Эти ограничения проверяются скриптом при typecheck. Framework-generated route tree имеет собственные соглашения именования.
+
+В проекте сохранены все **61 компонент shadcn/ui**. Навигация, модальные поверхности, фильтры, поля, сообщения, таблицы и состояния составлены из готовых компонентов. [UI-kit](projects/frontend/src/pages/ui-kit) использует ту же тему. Для добавления: `pnpm ui:add <component> --yes`; перед обновлением существующих исходников проверяйте diff.
+
+Дизайн основан на [Taste Skill](https://github.com/Leonxlnx/taste-skill/tree/main/skills/taste-skill) и [Better Web UI](https://github.com/aladicf/better-web-ui), с учетом собственной темы Альфа Бизнес. [Контекст дизайна](.better-web-ui.md), [решения и проверки](specs/09-ui-review.md).
+
+## Проверки
+
+```sh
+pnpm typecheck                      # все пакеты + границы frontend
+pnpm test                           # frontend, backend, research: офлайн
+pnpm build                          # frontend SSR и backend
+pnpm --filter @alfa/frontend test:e2e
+```
+
+Для Playwright нужен Chromium. Первый запуск: `pnpm --filter @alfa/frontend exec playwright install chromium`. С уже установленным системным браузером:
+
+```sh
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium pnpm --filter @alfa/frontend test:e2e
+```
+
+E2E проверяет поиск, фильтры, сохранение/изоляцию, прямые ссылки и фокус, вопросы/feedback, экспорт, отмену/историю, сценарии ошибок, mobile и автоматическую доступность светлой/темной темы. Сервер запускается автоматически или переиспользуется, если уже работает. Платных LLM-вызовов и OCR в этих проверках нет.
+
+Собранные сервисы: `pnpm --filter @alfa/backend start` и `pnpm --filter @alfa/frontend start`. Nitro output: `.output/server/index.mjs`. Внешний адрес backend задавайте при сборке через `API_PROXY_TARGET`.
+
+## Скриншоты
+
+```sh
+pnpm --filter @alfa/frontend dev
+# В другом терминале:
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium pnpm --filter @alfa/frontend screenshots
+```
+
+Скрипт использует отдельный browser context с чистым localStorage, фиксированные viewport и synthetic fixtures. Он воспроизводит реальные клики и ждет загрузки шрифтов/интерфейса. Артефакты — `docs/screenshots`; traces/test-results не коммитятся.
+
+## Backend и инфраструктура
 
 ```sh
 curl --fail http://127.0.0.1:3001/health
 curl --fail http://127.0.0.1:3001/ready
 curl --fail http://127.0.0.1:3000/api/health
-```
-
-`/health` проверяет HTTP-сервис. `/ready` с DATABASE_URL выполняет SQL через Drizzle и возвращает `database: ok` либо HTTP 503. Без URL возвращает `database: not_configured`: это готовность пустого каркаса, не проверка подключения к БД или продуктового сценария.
-
-Остановка: Ctrl+C для dev-процессов, `pnpm infra:down` для контейнеров. Данные PostgreSQL сохраняются в volume; `down -v` удалит их, поэтому в обычном сценарии не используется.
-
-## Проверки и сборка
-
-```sh
-pnpm typecheck
-pnpm test
-pnpm build
-```
-
-Проверка типов включает все локальные компоненты shadcn/ui; маршрутный файл генерируется TanStack Router CLI. Тесты проверяют lifecycle Fastify, отсутствие предметных маршрутов и отказ readiness при недоступной БД. Реальное соединение с PostgreSQL проверяется отдельно через `/ready`.
-
-Запуск собранных приложений в двух терминалах:
-
-```sh
-pnpm --filter @alfa/backend start
-pnpm --filter @alfa/frontend start
-```
-
-Frontend собирается с Nitro в `.output/server/index.mjs`; proxy `/api/*` работает в dev и в сборке. `API_PROXY_TARGET` (по умолчанию `http://127.0.0.1:3001`) задается при запуске dev или **во время сборки** frontend. Для production-топологии с другим адресом backend пересоберите frontend с нужным значением или настройте внешний ingress. В текущем шаблоне страница не вызывает предметный API.
-
-## Контейнерный запуск шаблона
-
-```sh
 docker compose --profile apps up --build --wait
 ```
 
-Запускает dev frontend, dev backend и PostgreSQL. Это контейнерная среда разработки, не production image; исходники включаются в image, после изменения нужен rebuild. Порты 3000/3001 должны быть свободны — остановите локальный `pnpm dev` заранее.
+`/health` — HTTP liveness. `/ready` с DATABASE_URL проверяет SQL и возвращает `database=ok` или 503; без URL сообщает `not_configured`. Это готовность scaffold, не предметного продукта.
 
-`docker compose --profile apps down` останавливает все три контейнера и сохраняет volume. Воркер/Redis еще не добавлены; их место и будущий lifecycle описаны в [архитектуре агента](specs/04-agent-runtime.md).
+Compose поднимает dev frontend/backend/PostgreSQL, порты 3000/3001 должны быть свободны. После изменения исходников нужен rebuild. `docker compose --profile apps down` сохраняет volume. `down -v` удаляет данные и не используется в обычном workflow.
 
-При сборке за корпоративным TLS-прокси Dockerfile поддерживает необязательный BuildKit secret `extra_ca` с доверенным PEM-сертификатом. Передайте его через локальный Compose override (`build.secrets` и верхнеуровневый `secrets.extra_ca.file`) и при необходимости `--build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg NO_PROXY`. CA используется только во время установки; проверка TLS остается включенной. Пути и сертификаты конкретной облачной среды не входят в репозиторий.
+Dockerfile поддерживает необязательный BuildKit secret `extra_ca` для доверенного CA корпоративного TLS-прокси: локальный Compose override с build.secrets/secrets.file и при необходимости стандартные proxy build args. TLS-проверка остается включенной; сертификаты и конфигурация конкретной среды не попадают в Git.
 
-## Конфигурация backend
+Backend `.env` читается из `projects/backend`. Переменные: HOST=0.0.0.0, PORT=3001, LOG_LEVEL=info, CORS_ORIGIN=http://localhost:3000, optional DATABASE_URL. Пример локальных credentials — только для разработки. `pnpm db:generate`, `pnpm db:migrate` требуют DATABASE_URL; предметных таблиц пока нет. Не сбрасывайте общую базу.
 
-| Переменная | По умолчанию | Назначение |
-| --- | --- | --- |
-| `HOST` | `0.0.0.0` | Адрес HTTP bind |
-| `PORT` | `3001` | Порт Fastify |
-| `LOG_LEVEL` | `info` | Уровень логирования |
-| `CORS_ORIGIN` | `http://localhost:3000` | Разрешенный origin фронтенда |
-| `DATABASE_URL` | отсутствует | PostgreSQL connection string; обязателен для Drizzle CLI |
+## Research и следующие шаги
 
-LLM-ключи и MCP-конфигурация пока не нужны: соответствующих интеграций нет. Не храните секреты в Git, PDF-спецификациях и research.
+[Исследовательский агент](research/agent/README.md) уже умеет читать профили/связи, искать новости и материалы банка, использовать OCR и собственный bounded LangGraph-цикл. Исторические отчеты: [модели](research/agent/results/llm-smoke-2026-10-21.md), [OCR](research/agent/results/ocr-compare-2026-10-21/SUMMARY.md). Исходные CSV, PDF банка, OCR тексты и run outputs хранятся вне Git.
 
-## Drizzle
+Frontend пока не вызывает этого агента. [Нужные API и DTO](specs/05-api-and-ui.md), [worker/очередь](specs/04-agent-runtime.md), [аудит и порядок переноса research](specs/08-research-integration.md) описывают следующий этап. Нужны auth/membership, import-safe agent core, durable runs, бюджет, structured output и проверка источников. Не запускайте готового автономного агента как основной компонент: PDF требует собственную агентную логику и только разрешенные модели.
 
-`projects/backend/src/db/schema.ts` намеренно пуст. Новые предметные таблицы добавляются отдельной задачей:
-
-```sh
-pnpm db:generate
-pnpm db:migrate
-pnpm --filter @alfa/backend db:studio
-```
-
-Команды требуют DATABASE_URL из backend `.env` или процесса. SQL-миграции в `projects/backend/drizzle/` следует хранить в Git. Не использовать `push`/reset для общей базы. Сейчас мигрировать нечего.
-
-## shadcn/ui
-
-Все UI-компоненты из реестра стиля `new-york-v4` добавлены в `projects/frontend/src/components/ui/`, включая sidebar, chart, form и combobox; список сохранен в `projects/frontend/shadcn-components.json`. Тема neutral и стили инициализированы. Компоненты импортируются по месту использования, например `@/components/ui/button`. Готовые страницы/демоблоки и примеры реестра не добавляются: это не отдельные UI-примитивы.
-
-Для последующего обновления или добавления:
-
-```sh
-pnpm ui:add button --yes
-# Полный повторный импорт: выполняйте осознанно, проверяя diff существующих компонентов.
-pnpm ui:add --all --yes
-```
-
-## Агентная среда
-
-Предлагается отдельный worker process в пакете backend, BullMQ + Redis, собственный ограниченный агентный цикл и контролируемые tools/MCP. Сейчас это только спецификация. «OpenCoda» предварительно трактуется как OpenCode, выбор не закреплен. PDF запрещает готовые автономные агенты и мультиагентные системы как основной компонент: допустимость технической оболочки надо проверить до интеграции. Разрешенные модели и бюджет 500 ₽/день перечислены в specs.
-
-Сторонние компоненты и статус интеграций: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+[Все спецификации](specs/README.md) · [Исходный кейс](specs/source/brief.pdf) · [Сторонние компоненты и лицензии](THIRD_PARTY_NOTICES.md)

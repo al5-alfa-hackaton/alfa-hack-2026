@@ -8,6 +8,8 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
+        success: "bg-success-muted text-success-muted-foreground [a&]:hover:bg-success-muted/80",
+        insight: "bg-insight-muted text-insight-muted-foreground [a&]:hover:bg-insight-muted/80",
         default: "bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
         secondary:
           "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",

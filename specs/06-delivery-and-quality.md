@@ -1,54 +1,44 @@
-# Реализация, качество и приемка
+# Этапы реализации и качество
 
-## Этапы
+## Завершено
 
-1. **Шаблон (текущая работа).** Два pnpm workspace-пакета, SSR-страница, весь набор компонентов shadcn/ui, Fastify, пустая Drizzle-схема, dev PostgreSQL, сборка/типы и технические проверки.
-2. **Данные и доступ.** Получить CSV и документы банка, подтвердить словарь полей и права источников; synthetic fixtures, схемы/миграции, membership, ingestion и provenance.
-3. **Поиск и персонализация.** Классификация/дедупликация событий, извлечение фактов, baseline ranking с объяснимыми признаками, retrieval банковской аналитики. Измерить baseline до усложнения.
-4. **Агентный контур.** Собственный runtime, model gateway с разрешенными моделями, tools, SQL checkpoints, BullMQ/Redis/outbox и отдельный backend worker. Проверка цитат, ограниченная адаптация, бюджет и отмена.
-5. **Продуктовый сценарий.** Компания/роль → лента → инсайт → источники → уточнение → feedback, SSE и states из 05-api-and-ui.
-6. **Сдача.** Полный Docker-запуск, synthetic E2E, notices для моделей/данных/сервисов, README проверки жюри, точный commit/tag; по желанию внешний demo-host.
+- pnpm workspace, технический Fastify/Drizzle scaffold и полный UI-набор.
+- Frontend demo cycle из codex/mock-app-cycle, переработанные UX/визуальная система и слои по rules.md.
+- Отдельное research: loaders, BM25, tools, LangGraph, OCR и зафиксированные model comparisons.
+- Функциональные browser tests, offline unit tests и проверка frontend import boundaries. Точные команды — в README; платные сравнения не запускаются из общего test script.
 
-## Проверки будущей реализации
+Это три независимые части, не завершенный live E2E продукт.
 
-| Уровень | Проверить |
-| --- | --- |
-| Data | типы, null/0/false, дубли, ссылки на компании, направление платежей, сохранение оригинала |
-| API | auth/membership, cross-tenant доступ, валидацию, идемпотентность, pagination и ошибки |
-| Worker | duplicate job, падение/перезапуск, checkpoint, retry/backoff, cancel, общий бюджет |
-| Agent | несколько шагов, выбор tools, дополнительный поиск при недостаточности, предел итераций |
-| Evidence | точность цитаты, ссылки на документ/страницу, отсутствие вымышленной позиции банка |
-| UI/E2E | основной сценарий, keyboard, пустые/частичные/ошибочные состояния, reconnect SSE |
-| Security | prompt injection в новости/документе, SSRF, tool policy, утечки scope/ключей в логах |
+## План внедрения
 
-## Метрики
+1. **Данные/read API:** schema/migrations, versioned import, memberships, CLIENT, me/companies/context/documents. Сохранить неизвестное направление ВЭД, sentinel 1000, coverage, исторические редакции.
+2. **Core boundary:** вынести import-safe graph/tools из CLI, добавить exports/build contract и DI для репозиториев/модели/аудита. Существующий CLI сохраняется для исследования.
+3. **Durable jobs:** runs/outbox/events/checkpoints, BullMQ/Redis, worker entrypoint в backend, lease, cancel, retry, rate limits и общий бюджет.
+4. **Публикация:** structured DTO, evidence/provenance gate, ranking/кластеризация новых событий, bank-position freshness, partial/insufficient evidence.
+5. **Frontend integration:** entity API adapters, server cache с user/company/perspective keys, SSE/reconnect, saved/feedback/conversations. Никакого молчаливого возврата synthetic fixtures при ошибке live API.
+6. **Сдача:** полный compose с worker/Redis, auth/test accounts или явно обозначенный demo auth, synthetic E2E, notices, precise commit/tag. Доступ жюри к private repo — alfa-hack-2026 (PDF, с. 8).
 
-Отдельный holdout новых событий/компаний/отраслей, не использованных для настройки prompts. Экспертно размеченные relevance judgments и multi-factor interpretations.
+## Проверки по границам
 
-- Поиск/ранжирование: Recall@k, Precision@k, nDCG@k, доля событий с понятной причиной релевантности.
-- Обоснованность: доля существенных claims с валидной цитатой, factual error rate, неверное присвоение AI-вывода банку, contradiction rate.
-- Персонализация: экспертная оценка влияния на конкретную компанию, различимость результатов по ролям/контекстам.
-- Агент: task completion, успешность tools, число повторов и доля корректных отказов при недостатке данных.
-- Эксплуатация: p50/p95 длительности, queue wait, error/retry/cancel rate, стоимость run и суммарный расход ключа в сутки.
-- Продукт: полезность, открытия источников, повторные вопросы, feedback об ошибках.
+| Уровень  | Обязательная проверка                                                                                                                   |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Data     | null/false/0, sentinel 1000, duplicate IDs, самоплатежи, unknown direction, incomplete group revenue/coverage                           |
+| API      | membership на каждом ресурсе, CLIENT, validation, cursor, perspectives отдельно от access role, idempotency conflicts                   |
+| Agent    | tools возвращаются в граф, лимиты с дополнительной финализацией, schema-invalid output, непроверенные citations, conflicting bank dates |
+| Worker   | повторная доставка, crash/restart, lease expiry, checkpoints, cancel во время tool/LLM, не публиковать отмененное                       |
+| Budget   | одновременные worker, usage.cost отсутствует/неизвестная валюта, timeout с неопределенным расходом, daily reset                         |
+| UI       | реальная навигация/deep links, focus return, keyboard, поиск/фильтры, сохранение и scope, замечание отдельно от rating                  |
+| SSE      | duplicate/reordered events, Last-Event-ID, offline/reconnect, polling fallback, отсутствие raw sensitive payloads                       |
+| Security | prompt injection в news/OCR, SSRF, forbidden documents/pages, role escalation, log redaction и session cleanup                          |
 
-Целевые пороги установить после baseline и экспертной разметки, не выдавать произвольные числа за требования PDF. Regression suite закреплять по версиям профилей/корпуса/prompts/models. LLM-evaluation, если нужна, использует только разрешенные модели и общий бюджет; экспертная оценка остается необходимой.
+Для frontend выполняются unit tests, architecture check и Playwright. Axe проверяет основной экран в светлой/темной теме; это автоматическая проверка части WCAG, не сертификат полной доступности. Просмотр 1440/768/390 и снимки дополняют автоматизацию. Проверка research — fixtures/ScriptedModel; это не live-модельная оценка.
 
-## Критерии будущей демонстрации
+## Качество результата
 
-Две синтетические компании с разным профилем, роли CFO/CEO, новости с неоднозначными данными и релевантная аналитика банка. Показать изменение ранжирования и интерпретации, причинную связь с признаками, цитаты, уточняющий вопрос, trace действий и поведение при недоступном источнике. Проверить также ранее не показанное событие. Синтетические и смоделированные интеграции маркировать.
+Отдельный holdout по новым компаниям/отраслям/событиям. Экспертная разметка влияния, а не только LLM-evaluation. Метрики: Recall@k/nDCG@k, relevance по компании/роли, factual errors, доля claims с валидными источниками, неверное присвоение AI-вывода банку, полнота/полезность, p50/p95 run time, queue wait, retry/cancel rates, стоимость/сутки.
 
-На сдаче: история коммитов в GitHub; для private repo — доступ `alfa-hack-2026`; точный commit/tag на дедлайн; README и воспроизводимый Docker; фиксация версий; THIRD_PARTY_NOTICES; synthetic данные и при необходимости тестовые учетные записи (PDF, с. 8). Сейчас это план, а не выполненная сдача.
+Пороговые значения установить после baseline. Четыре OCR-страницы и несколько агентных вопросов не доказывают общее качество; нельзя писать «OCR безошибочен». При каждой смене модели/prompt/corpus версионировать данные и повторять релевантный regression set.
 
-## Открытые вопросы, не блокирующие шаблон
+## Открыто
 
-1. «OpenCoda» — OpenCode или другой продукт? Допустима ли его строго техническая роль по трактовке организаторов? До ответа — собственный runtime.
-2. Где исходные CSV/аналитика и data dictionary? Каковы валюта, период платежей, единица выручки и смысл NEGATIVEMARK?
-3. Endpoint, API model IDs, тарифы, лимиты, граница суток и формат доступа к разрешенным LLM?
-4. Какие новостные источники разрешены, как часто обновлять и можно ли хранить полные тексты?
-5. Нужны ли реальный SSO/встраивание в банк или достаточно демонстрационного shell? Какие роли и company memberships?
-6. Правила retention, размещение/обработка данных и список разрешенных внешних MCP-серверов?
-7. Требования к свежести, объему и SLA? Точные параметры worker/очереди и пороги качества выбрать после baseline.
-8. Нужна ли vector retrieval; какие embedding-модели допустимы по условиям кейса?
-
-Ответы фиксировать в specs как решения. Исследовательские skills, AGENTS.md и конфигурации MCP в будущем разрабатывать в research без секретов и включать в продукт только после проверки; сейчас папка намеренно пустая.
+Production auth/SSO, storage/retention и политика доступа к аффилированным компаниям; актуальная квота/валюта gateway, выдача test credentials, права на хранение внешних текстов, freshness/SLA и deployment. Сырой dataset должен предоставляться безопасно вне Git. Vector search/MCP добавлять только при доказанной необходимости и разрешенных моделях; BM25 уже есть.

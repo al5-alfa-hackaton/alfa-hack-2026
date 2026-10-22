@@ -4,51 +4,62 @@
 
 ## Прямые зависимости
 
-| Компонент | Версия | Лицензия |
-| --- | --- | --- |
-| @base-ui/react | 1.9.0 | MIT |
-| @fastify/cors | 11.3.1 | MIT |
-| @hookform/resolvers | 6.0.0 | MIT |
-| @shadcn/react | 0.3.1 | MIT |
-| @tailwindcss/vite | 4.3.3 | MIT |
-| @tanstack/react-router | 1.170.45 | MIT |
-| @tanstack/react-start | 1.169.3 | MIT |
-| @tanstack/router-cli | 1.167.45 | MIT |
-| @types/node | 26.6.5 | MIT |
-| @types/pg | 8.23.1 | MIT |
-| @types/react | 19.3.0 | MIT |
-| @types/react-dom | 19.3.0 | MIT |
-| @vitejs/plugin-react | 6.1.2 | MIT |
-| class-variance-authority | 0.7.1 | Apache-2.0 |
-| cmdk | 1.1.1 | MIT |
-| cn | 0.5.0 | MIT |
-| date-fns | 4.4.0 | MIT |
-| drizzle-kit | 0.31.11 | MIT |
-| drizzle-orm | 0.45.4 | Apache-2.0 |
-| embla-carousel-react | 8.6.0 | MIT |
-| fastify | 5.12.7 | MIT |
-| input-otp | 1.5.0 | MIT |
-| lucide-react | 1.59.0 | ISC |
-| next-themes | 0.4.6 | MIT |
-| nitro | 3.0.260903-beta | MIT |
-| pg | 8.23.1 | MIT |
-| radix-ui | 1.8.1 | MIT |
-| react | 19.3.1 | MIT |
-| react-day-picker | 10.0.2 | MIT |
-| react-dom | 19.3.1 | MIT |
-| react-hook-form | 7.90.0 | MIT |
-| react-resizable-panels | 4.14.6 | MIT |
-| recharts | 3.8.0 | MIT |
-| shadcn | 4.22.1 | MIT |
-| sonner | 2.0.8 | MIT |
-| tailwindcss | 4.3.3 | MIT |
-| tsx | 4.23.15 | MIT |
-| tw-animate-css | 1.4.0 | MIT |
-| typescript | 5.9.3 | Apache-2.0 |
-| vaul | 1.1.2 | MIT |
-| vite | 8.3.4 | MIT |
-| vitest | 5.0.5 | MIT |
-| zod | 4.6.7 | MIT |
+| Компонент                    | Версия          | Лицензия   |
+| ---------------------------- | --------------- | ---------- |
+| @axe-core/playwright         | 4.14.0          | MPL-2.0    |
+| @base-ui/react               | 1.9.0           | MIT        |
+| @fastify/cors                | 11.3.1          | MIT        |
+| @fontsource-variable/manrope | 5.3.0           | OFL-1.1    |
+| @hookform/resolvers          | 6.0.0           | MIT        |
+| @langchain/core              | 1.2.13          | MIT        |
+| @langchain/langgraph         | 1.4.18          | MIT        |
+| @langchain/openai            | 1.6.0           | MIT        |
+| @playwright/test             | 1.64.1          | Apache-2.0 |
+| @shadcn/react                | 0.3.1           | MIT        |
+| @tailwindcss/vite            | 4.3.3           | MIT        |
+| @tanstack/react-router       | 1.170.45        | MIT        |
+| @tanstack/react-start        | 1.169.3         | MIT        |
+| @tanstack/router-cli         | 1.167.45        | MIT        |
+| @types/node                  | 26.6.5          | MIT        |
+| @types/pg                    | 8.23.1          | MIT        |
+| @types/react                 | 19.3.0          | MIT        |
+| @types/react-dom             | 19.3.0          | MIT        |
+| @vitejs/plugin-react         | 6.1.2           | MIT        |
+| class-variance-authority     | 0.7.1           | Apache-2.0 |
+| cmdk                         | 1.1.1           | MIT        |
+| cn                           | 0.5.0           | MIT        |
+| csv-parse                    | 7.0.3           | MIT        |
+| date-fns                     | 4.4.0           | MIT        |
+| drizzle-kit                  | 0.31.11         | MIT        |
+| drizzle-orm                  | 0.45.4          | Apache-2.0 |
+| embla-carousel-react         | 8.6.0           | MIT        |
+| fast-xml-parser              | 5.11.2          | MIT        |
+| fastify                      | 5.12.7          | MIT        |
+| input-otp                    | 1.5.0           | MIT        |
+| lucide-react                 | 1.59.0          | ISC        |
+| next-themes                  | 0.4.6           | MIT        |
+| nitro                        | 3.0.260903-beta | MIT        |
+| pg                           | 8.23.1          | MIT        |
+| prettier                     | 3.9.10          | MIT        |
+| radix-ui                     | 1.8.1           | MIT        |
+| react                        | 19.3.1          | MIT        |
+| react-day-picker             | 10.0.2          | MIT        |
+| react-dom                    | 19.3.1          | MIT        |
+| react-hook-form              | 7.90.0          | MIT        |
+| react-resizable-panels       | 4.14.6          | MIT        |
+| recharts                     | 3.8.0           | MIT        |
+| shadcn                       | 4.22.1          | MIT        |
+| snowball-stemmers            | 0.6.0           | ISC        |
+| sonner                       | 2.0.8           | MIT        |
+| tailwindcss                  | 4.3.3           | MIT        |
+| tsx                          | 4.23.15         | MIT        |
+| tw-animate-css               | 1.4.0           | MIT        |
+| typescript                   | 5.9.3           | Apache-2.0 |
+| unpdf                        | 1.8.1           | MIT        |
+| vaul                         | 1.1.2           | MIT        |
+| vite                         | 8.3.4           | MIT        |
+| vitest                       | 5.0.5           | MIT        |
+| zod                          | 4.6.7           | MIT        |
 
 ## Исходники UI
 
@@ -70,4 +81,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ## Модели, данные и интеграции
 
-LLM, датасеты CSV, оригинальная аналитика банка, внешние новостные сервисы, OpenCode/другой harness, BullMQ, Redis и MCP-серверы **пока не подключены**. Их упоминание в specs — проектные предложения и требования, не заявление об использовании. Смоделированных банковских интеграций и тестовых учетных записей пока нет. Дополнить этот файл лицензиями, provenance и ограничениями до их включения.
+Research использует LangChain/LangGraph, CSV/RSS/PDF/OCR и gateway разрешенных моделей; это отдельный CLI, не подключенный к предметному frontend API. Модели, источники, ограничения и исторические результаты перечислены в research/agent/README.md. Исходные CSV, PDF банка и OCR/run outputs не входят в Git; права доступа и хранения должны быть проверены при deployment. BullMQ, Redis, OpenCode и внешние MCP-серверы не подключены. Реальные SSO/банковские операции не реализованы.
+
+## Синтетический frontend
+
+Fixtures в projects/frontend/src/entities/company и entities/insight написаны для демонстрации. Компании, новости, показатели и аналитические тексты вымышлены и не являются реальными материалами или позицией Альфа-Банка. Скриншоты получены с этих fixtures; реальные данные не публикуются. Знак бренда — демонстрационное представление, не отдельная лицензия на товарный знак.
+
+Manrope распространяется по SIL Open Font License 1.1; fontsource package доставляет font files локально. Лицензию шрифта сохранять при дистрибуции.
+
+## Дизайн-руководства
+
+Использованы Taste Skill (https://github.com/Leonxlnx/taste-skill) и Better Web UI (https://github.com/aladicf/better-web-ui). Их исходники не включены в приложение. Better Web UI имеет собственную лицензию с дополнительными ограничениями и не обозначается как plain MIT. Ссылки и версии руководств зафиксированы в specs/09-ui-review.md; проектные заметки — .better-web-ui.md.
