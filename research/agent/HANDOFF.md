@@ -1,161 +1,83 @@
-# Изменения в агенте и что нужно на бэкенде
+# Подключение ML-части к бэкенду и фронту
 
-## Что уже сделано в `research/agent` (в `origin/main`)
+Что добавлено в `research/agent` и что нужно реализовать в `projects/backend` и `projects/frontend`, чтобы это заработало на сайте.
 
-| Коммит | Что изменилось |
-| --- | --- |
-| `17f06e6` | Режим ленты в промпте. Если в задаче есть «Выбранные события», агент разбирает каждое событие отдельным блоком, дает дословные цитаты с ID документа и пропускает нерелевантные события строкой «Событие <id>: пропустить — причина». Новое поле `memberIndustries` в `companyGroup`: все отрасли группы без повторов, с числом компаний |
-| `a9111fd` | Лимит ответа модели по умолчанию 2000 → 4000 токенов (со старым лимитом JSON в `finalize` обрезался и лента была пустой). Таблицы из OCR банка сохраняют строки. Фильтр `until` в `news_search` включает весь последний день. +7 тестов |
-| `9498d6a` | Новые строки в ответе агента: «Тип», «Главное», «Ответ». Продукты в тексте выводов по-русски, идентификаторы признаков — только после «Признаки:». Позиция банка — из самого свежего подходящего материала |
+## Что добавлено в ML-часть
 
-Формат блока, который агент пишет в режиме ленты:
+| Возможность | Артефакт (экспорт `@alfa/research-agent`) | Файл |
+| --- | --- | --- |
+| Разбор ответа агента в JSON карточки без второго вызова модели | `createFeedFinalizer`, `parseFeedAnswer`, `toStructuredDraft` | `src/agent/feed-parser.ts` |
+| Поля карточки из ответа агента: тип, главное, риски, возможности, шаги, ответ на вопрос | `ParsedEvent`: `kind`, `summary`, `risks`, `opportunities`, `actions`, `answer`, `clarification` | там же |
+| Задание агенту с явным режимом: лента или вопрос по карточке | `buildTaskPrompt({ mode, question, asOf, events, context, conversation })`, `TaskEvent` | `src/agent/prompts.ts` |
+| Ответы на вопросы: форма и длина по вопросу, без повтора, данные от пользователя, одно уточнение за диалог | разделы промпта `<question_mode>`; `clarificationAllowed(conversation)` | там же |
+| ML-отбор событий по размеченным новостям | `rankNewsForCompany`, `ML_RANKING_VERSION`, `loadNewsTags`, `dataPaths().newsTags` | `src/news/ranking.ts`, `src/news/tagging.ts` |
+| Разметка новостей моделью | `pnpm news:tag` (~4,4 ₽ на 1019 новостей) | `src/cli/news-tag.ts` |
+| Отрасли группы без повторов | `companyGroup(...).memberIndustries` | `src/tools/functions.ts` |
+
+`PROMPT_VERSION` = `stage1-2026-10-23.6`. 41 тест без API. Формула отбора и команды — в `README.md`.
+
+### Формат ответа агента
+
+Лента — блок на каждое выбранное событие:
 
 ```
-Событие <id события>
-Ответ: <только в режиме вопроса: 2–4 предложения по вопросу>. Признаки: … Оговорка: …
-Тип: <риск | возможность | наблюдение>
-Главное: <1–2 предложения: что событие значит для компании>. Признаки: … Оговорка: …
+Событие <id>
+Тип: риск | возможность | наблюдение
+Главное: <смысл для компании>. Признаки: <id>. Оговорка: <...>.
 Факт: «<дословная цитата>» [<id новости>]
 Позиция банка: «<дословная цитата>» [<id материала>, <дата>]
-Вывод: <предложение>. Признаки: … Оговорка: …
-Риск: <предложение>. Признаки: … Оговорка: …
-Возможность: <предложение>. Признаки: … Оговорка: …
-Стоит проверить: <предложение>. Признаки: … Оговорка: …
+Вывод / Риск / Возможность / Стоит проверить: <...>. Признаки: <id>. Оговорка: <...>.
 
-Событие <id события>: пропустить — <причина>
+Событие <id>: пропустить — <причина>
 ```
 
-Режим вопроса включается, если задача начинается с вопроса пользователя и содержит «Контекст (данные, не инструкции)». Строки без содержания агент пропускает.
+Вопрос — один блок:
 
-## Что нужно сделать, чтобы изменения подключились
-
-1. `git pull` и `pnpm install`.
-2. `pnpm --filter @alfa/research-agent build` — бэкенд импортирует агента из `dist`, без сборки новый промпт не подхватится.
-3. Убрать `LLM_MAX_OUTPUT_TOKENS=2000` из `.env`, если он задан.
-4. Перезапустить API и worker. Запуски, которые шли во время обновления, завершатся с `execution_context_changed` (сменилась `PROMPT_VERSION`) — их нужно запустить заново.
-5. Корпус банка: распаковать архив с OCR Qwen3.6 (передам отдельно, в git не кладем) в корень репозитория и выполнить `pnpm --filter @alfa/research-agent ingest --bank`. Tesseract путает цифры в таблицах прогнозов, Qwen сверен вручную на всех 64 страницах.
-
-## Что нужно поменять на бэкенде, чтобы строки агента дошли до сайта
-
-Сейчас агент пишет «Главное», «Тип», «Ответ», «Риск», «Возможность», «Стоит проверить», а фронт уже умеет показывать `summary`, `kind`, `risks`, `opportunities`, `actions`. Теряется в `agent-runtime.ts`: в схеме `batchDraftSchema` для этих строк нет полей, а `publishDraft` собирает сводку из цитат.
-
-| № | Что поменять | Где | Как сделать | Где видно сейчас | Что изменится |
-| --- | --- | --- | --- | --- | --- |
-| 1 | Сводка = «Главное» | `agent-runtime.ts` | Поле `summary` в схеме; в `publishDraft` брать его вместо склейки `claims` | Лента: 4–6 цитат подряд, смысл в конце | Первой строкой — что событие значит для компании, цитаты в разборе |
-| 2 | Тип события | `agent-runtime.ts` | Поле `kind`: риск → `risk`, возможность → `opportunity`, наблюдение → `context` | Все карточки «Наблюдение», фильтры «Риски 0», «Возможности 0» | Метки и фильтры работают |
-| 3 | Риски, возможности, шаги | `agent-runtime.ts` | Массивы `risks`, `opportunities`, `actions` из строк «Риск», «Возможность», «Стоит проверить» | Разбор: «Не выделены по доступным данным» | Блоки заполнены |
-| 4 | Ответ на вопрос | `agent-runtime.ts`, ветка `kind === 'question'` | Поле `answer` в схеме; для вопроса возвращать его вместо склейки сводок | «Вопросы»: в ответ приходит та же карточка | Прямой ответ на вопрос в 2–4 предложениях |
-| 5 | Только цитаты агента | Промпт `finalize` | Дописать: «бери только цитаты из ответа агента; события с пометкой "пропустить" не включай» | В карточке 4–6 цитат, позиция банка иногда из июльского материала («материалы банка устарели») | 1–2 цитаты, свежая позиция банка, нерелевантные события не публикуются |
-| 6 | Ошибка одного утверждения не обнуляет ленту | `agent-runtime.ts` | Проверять каждое утверждение отдельно (`safeParse` в цикле), неверное отбрасывать | Одна цитата длиннее 300 символов — вся лента «Недостаточно подтверждённых данных» | Отбрасывается только неверное утверждение |
-| 7 | Отрасли группы топ-5 | `research-catalog.ts` | Вместо склейки `members.okvedName` — `companyGroup(...).memberIndustries.slice(0, 5)` с числом компаний и «ещё N» | «Отрасли участников группы»: 20 названий с повторами, только по первым 20 компаниям | «Фармоптовая торговля — 22; больницы — 17; …; ещё 58». Меньше шума в отборе новостей |
-| 8 | Признак «гарантии» | `research-catalog.ts`, `features` | Добавить `guarantees` рядом с `leasing` | Выводы агента о гарантиях отбрасываются как неизвестный признак | Выводы о гарантиях публикуются. После этого добавлю `guarantees` в промпт |
-| 9 | Резерв бюджета | `.env`, `RUN_RESERVATION_RUB` | Снизить с 25 до 5–8 ₽ после подтверждения лимита запроса у шлюза | Живая сводка из 3 событий стоит 0,6–1 ₽; при резерве 25 ₽ на день хватает ~20 сводок | 60–100 сводок в день при том же лимите 500 ₽ |
-
-## Сделано: разбор ответа агента без второго вызова модели (п.1)
-
-Артефакты в `research/agent` (экспортируются из пакета):
-
-| Артефакт | Файл | Что делает |
-| --- | --- | --- |
-| `parseFeedAnswer(text, { ctx, eventIds, featureIds })` | `src/agent/feed-parser.ts` | Размеченный ответ агента → события с `kind`, `summary`, `answer`, `claims`, `risks`, `opportunities`, `actions`, список пропущенных событий и замечания разбора. Цитаты сверяются `evidenceVerify`, длинные сокращаются по границе предложения до 300 символов, неизвестные признаки убираются |
-| `createFeedFinalizer({ ctx, eventIds, featureIds, fallback })` | там же | Готовая функция для опции `finalize` графа. Возвращает сообщение с JSON в формате `batchDraftSchema`; если в ответе нет ни одного блока — вызывает `fallback` |
-| `toStructuredDraft(result)` | там же | JSON для `finalize`: `{ events, skipped, issues }` |
-| Тесты | `test/feed-parser.test.ts` | Совместимость со схемой бэкенда, режим вопроса, выдуманные цитаты, длинные цитаты, запасной путь |
-
-Проверка на ответах 17 живых запусков из локальной базы: все разобранные утверждения прошли `gateDraft`, ни одно не отброшено.
-
-### Что поменять в `agent-runtime.ts`
-
-1. Подставить наш `finalize`, текущий оставить запасным:
-
-```ts
-import { createFeedFinalizer } from '@alfa/research-agent'
-
-const modelFinalize = async (state, config) => { /* текущий код finalize без изменений */ }
-// в buildAgentGraph:
-finalize: async (state, config) => {
-  await progress('step.started', { phase: 'verifying_evidence' })
-  return createFeedFinalizer({
-    ctx: this.ctx,
-    eventIds: ranked.map((r) => r.news.id),
-    featureIds,
-    fallback: modelFinalize,
-  })(state, config)
-},
+```
+Событие <id>
+Ответ: <ответ на вопрос; может быть многострочным списком>. Признаки: <id>. Оговорка: <...>.
+Уточнение: <вопрос пользователю, если не хватает сведений о компании>
+Факт: «<дословная цитата>» [<id новости>]
 ```
 
-2. Расширить схему события (лишние поля сейчас молча отбрасываются zod):
+`createFeedFinalizer` переводит это в JSON формата `batchDraftSchema` с дополнительными полями события. Для вопроса `answer` уже содержит текст ответа и, если есть, уточняющий вопрос через пустую строку. Если агент ответил на вопрос простым текстом без блока (приветствие), этот текст становится `answer`. Запасной вызов модели (`fallback`) выполняется, только если в ответе ленты нет ни одного блока.
+
+## Что реализовать на бэкенде
+
+Файл: `projects/backend/src/modules/analytics/infrastructure/agent-runtime.ts`.
+
+### 1. Схема ответа
+
+Добавить в событие `batchDraftSchema` необязательные поля (старые сохраненные ответы остаются валидными):
 
 ```ts
-const note = z.object({ text: z.string().max(2000), companyFeatureIds: z.array(z.string()), uncertainty: z.string().nullable() })
-const batchDraftSchema = z.object({
-  events: z.array(z.object({
-    eventId: z.string(),
-    claims: draftSchema.shape.claims,
-    kind: z.enum(['risk', 'opportunity', 'context']).optional(),
-    summary: z.string().max(2000).nullable().optional(),
-    answer: z.string().max(2000).nullable().optional(),
-    risks: z.array(note).max(5).optional(),
-    opportunities: z.array(note).max(5).optional(),
-    actions: z.array(note).max(5).optional(),
-  })).max(5),
-})
+const noteSchema = z.object({ text: z.string().max(2000), companyFeatureIds: z.array(z.string()), uncertainty: z.string().nullable() })
+
+kind: z.enum(['risk', 'opportunity', 'context']).optional(),
+summary: z.string().max(2000).nullable().optional(),
+answer: z.string().max(4000).nullable().optional(),
+risks: z.array(noteSchema).max(5).optional(),
+opportunities: z.array(noteSchema).max(5).optional(),
+actions: z.array(noteSchema).max(5).optional(),
 ```
 
-3. В `publishDraft` после `gateDraft`:
+### 2. Отбор событий
+
+Загрузить разметку один раз на процесс и закэшировать:
 
 ```ts
-const line = (n) => (n.uncertainty ? `${n.text} (${n.uncertainty})` : n.text)
-i.kind = draft.kind ?? 'context'
-if (draft.summary) i.summary = draft.summary
-i.risks = (draft.risks ?? []).map(line)
-i.opportunities = (draft.opportunities ?? []).map(line)
-i.actions = (draft.actions ?? []).map(line)
+const newsTagsCache = new Map<string, Promise<NewsTags>>()
+const newsTagsFor = (dataDir: string) => {
+  if (!newsTagsCache.has(dataDir)) newsTagsCache.set(dataDir, loadNewsTags(dataPaths({ DATA_DIR: dataDir }).newsTags))
+  return newsTagsCache.get(dataDir)!
+}
 ```
 
-4. Для `run.input.kind === 'question'` возвращать `answer: drafts.find((d) => d.answer)?.answer ?? <текущая склейка сводок>`.
-
-Фронт менять не нужно: `kind`, `summary`, `risks`, `opportunities`, `actions` он уже показывает.
-
-## Сделано: отбор новостей на ML (п.3)
-
-| Артефакт | Файл | Что делает |
-| --- | --- | --- |
-| `pnpm news:tag [--force] [--max-rub=10] [--limit=N]` | `src/cli/news-tag.ts` | Размечает новости моделью пачками по 20, сохраняет после каждой пачки, повтор размечает только новые |
-| `buildNewsTagPrompt`, `NEWS_TAG_PROMPT_VERSION`, `NEWS_TOPICS` | `src/agent/prompts.ts` | Промпт разметки: группы ОКВЭД, темы, масштаб, важность |
-| `okvedDivisions`, `okvedGroup`, `tagNewsBatch`, `parseTagResponse`, `loadNewsTags` | `src/news/tagging.ts` | Словарь групп ОКВЭД из данных компаний, вызов модели, проверка ответа zod, кэш `data/processed/news-tags.json` |
-| `rankNewsForCompany(ctx, tags, companyId, { perspective, asOf, limit, since, until })` | `src/news/ranking.ts` | Отбор событий для компании. Результат совместим с `RankedNews` бэкенда, причины — ID признаков профиля |
-| `companyExposures`, `tagCoverage`, `ML_RANKING_VERSION` | там же | Связи компании с отраслями и темами; доля размеченных новостей; версия для `executionScope` |
-| `pnpm news:rank [дата\|-] [companyId ...]` | `src/cli/news-rank.ts` | Топ-3 для CFO и CEO, бесплатно |
-| `LLM_MODEL_TAGGER` | `src/config.ts`, `.env.example` | Модель разметки, по умолчанию `deepseek/deepseek-v4.1-flash` |
-| Тесты | `test/news-ranking.test.ts` | Проверка ответа модели, фейковая модель, связи компании, исключение нерелевантного, дубли, ракурс, период |
-
-Новых зависимостей нет. Разметка 1019 новостей — 4,4 ₽. Формула и ограничения — в `README.md`, раздел «Отбор новостей».
-
-Сравнение топ-3 на 22.10 (было → стало):
-
-| Компания | Правила `rankNews` | `rankNewsForCompany` |
-| --- | --- | --- |
-| U_9250, инженерные сооружения | Дефолты 2027, суд Raiffeisen, кабель в Канаде | Заявление и пресс-конференция ЦБ, льготы банкам при кредитовании защиты критической инфраструктуры; для CEO — число строительных компаний −4,3%, семейная ипотека |
-| U_1595, розница одеждой | Суд Raiffeisen, бонды брокера, облигации | Решение и пресс-конференция ЦБ, доля облигаций в фондировании |
-| U_57706, опт топлива | Суд Raiffeisen, бонды брокера, манипулирование рынком | ФАС о дизельной сделке, отмена демпфера на дизель, решение ЦБ; лишнее — ввод ИЖС (группа 46.7 включает и стройматериалы) |
-| U_68157, жилое строительство | Дефолты 2027, суд Raiffeisen, кабель в Канаде | Семейная ипотека, ввод ИЖС, ввод жилья |
-| U_3263, автоперевозки | Суд Raiffeisen, переговоры в Осло, иномарка в розыске | Спрос на автоперевозки +20%, решение ЦБ |
-
-### Что поменять на бэкенде
-
-1. При старте загрузить разметку рядом с корпусом (`composition/data.ts` или `runtime.ts`):
+В `execute` вместо `rankNews(...)`:
 
 ```ts
-import { dataPaths, loadNewsTags } from '@alfa/research-agent'
-const newsTags = await loadNewsTags(dataPaths({ DATA_DIR: config.DATA_DIR! }).newsTags)
-```
-
-2. В `LangGraphRuntime.execute` вместо `rankNews(...)`:
-
-```ts
-import { rankNewsForCompany, ML_RANKING_VERSION } from '@alfa/research-agent'
-let ranked = newsTags.size
+const newsTags = this.config.DATA_DIR ? await newsTagsFor(this.config.DATA_DIR) : new Map()
+let ranked: RankedNews[] = newsTags.size
   ? rankNewsForCompany(this.ctx, newsTags, run.companyId, {
       perspective: run.perspective,
       asOf: run.createdAt,
@@ -166,18 +88,127 @@ let ranked = newsTags.size
   : rankNews(/* прежние аргументы */)
 ```
 
-и в `executionScope` — `ranking: newsTags.size ? ML_RANKING_VERSION : RANKING_VERSION`.
+В `executionScope`: `ranking: newsTags.size ? ML_RANKING_VERSION : RANKING_VERSION`. Если файла разметки нет, работают прежние правила.
 
-3. После каждого `ingest --news` запускать `pnpm --filter @alfa/research-agent news:tag` и перезапускать API и worker (разметка, как и корпус, читается при старте).
-4. Добавить признак `guarantees` в `research-catalog.ts`: отбор может вернуть его в `reasons`, сейчас для него нет подписи на фронте.
+### 3. Задание агенту
 
-## Еще в планах
+Передавать вопрос, карточку и историю отдельными полями, а не одной строкой: иначе агент отвечает на все вопросы одинаково, пересказом карточки.
 
-Явный параметр `mode: 'feed' | 'question'` в `buildTaskPrompt` вместо распознавания по фразе в тексте задания и экспорт общего списка признаков `FEATURE_IDS`, чтобы промпт и `research-catalog.ts` не расходились. Тестовый набор с ручной разметкой для подбора весов отбора и метрик nDCG@5.
+```ts
+const isQuestion = run.input.kind === 'question'
+const question = run.input.question ?? `Разбери события для компании в ракурсе ${run.perspective}. Изучи их через инструменты; позицию банка проверь отдельно.`
+let insightContext: unknown = null
+let conversation: { author: string; text: string }[] = []
+if (isQuestion && run.input.insightId) {
+  // insight, news, messages — как сейчас
+  insightContext = {
+    eventId: insight.event.id, title: insight.event.title, version: insight.version, summary: insight.summary,
+    claims: insight.claims.map((c) => ({ kind: c.kind, text: c.text, uncertainty: c.uncertainty })),
+    risks: insight.risks, actions: insight.actions, bankPosition: insight.bankPosition.status,
+    evidence: insight.evidence.map((e) => ({ documentId: e.documentId, quote: e.quote, publishedAt: e.publishedAt })),
+  }
+  conversation = messages
+    .filter((m) => m.at <= run.createdAt && m.runId !== run.id) // без текущего вопроса и более поздних сообщений
+    .slice(-10)
+    .map((m) => ({ author: m.author, text: m.text }))
+}
+```
 
-## Вопросы
+Добавить `insightContext` и `conversation` в `executionScope`. Первое сообщение графа:
 
-1. Подключаешь `createFeedFinalizer` и расширенную схему (п.1)?
-2. Переключаемся на `rankNewsForCompany` с откатом на правила, если разметки нет (п.3)?
-3. Какой корпус банка будет на демо и как передавать обработанные данные (`bank-ocr`, `news-tags.json`)?
-4. Какие компании и аккаунты даем жюри?
+```ts
+buildTaskPrompt({
+  mode: isQuestion ? 'question' : 'feed',
+  question,
+  asOf: run.createdAt.slice(0, 10),
+  events: ranked.map((r) => ({ id: r.news.id, title: r.news.title, publishedAt: r.news.publishedAt, reasons: r.relevance.reasons })),
+  context: insightContext,
+  conversation,
+})
+```
+
+### 4. `finalize`
+
+Текущий код `finalize` вынести в функцию `modelFinalize(state, config)` без изменений и передать запасным путем:
+
+```ts
+finalize: async (state, config) => {
+  await progress('step.started', { phase: 'verifying_evidence' })
+  return createFeedFinalizer({
+    ctx: this.ctx,
+    eventIds: ranked.map((r) => r.news.id),
+    featureIds,
+    mode: isQuestion ? 'question' : 'feed',
+    allowClarification: clarificationAllowed(conversation),
+    fallback: modelFinalize,
+  })(state, config)
+},
+```
+
+### 5. Публикация
+
+`publishDraft` принимает событие целиком (`z.infer<typeof batchDraftSchema>['events'][number]`). После `gateDraft`:
+
+```ts
+const noteLine = (n) => (n.uncertainty ? `${n.text} (${n.uncertainty})` : n.text)
+i.kind = draft.kind ?? 'context'
+if (draft.summary) i.summary = draft.summary
+i.risks = (draft.risks ?? []).map(noteLine)
+i.opportunities = (draft.opportunities ?? []).map(noteLine)
+i.actions = (draft.actions ?? []).map(noteLine)
+```
+
+Ответ на вопрос:
+
+```ts
+answer: drafts.find((d) => d.answer)?.answer || insights.map((i) => i.summary).join('\n\n') || 'Подтверждённых данных для ответа недостаточно.'
+```
+
+Для вопроса `drafts` может содержать событие только с `answer` и без фактов (приветствие, уточнение) — его не нужно публиковать как карточку, нужен только `answer`.
+
+### 6. Профиль компании
+
+Файл: `projects/backend/src/modules/companies/infrastructure/research-catalog.ts`.
+
+- Добавить признак `guarantees` («Гарантии») рядом с `leasing`: агент и отбор используют гарантии, а `gateDraft` отбрасывает выводы с признаком, которого нет в профиле.
+- `group_industries`: вместо склейки `members.okvedName` (повторы, только первые 20 компаний) — `companyGroup(...).memberIndustries`, первые 5 с числом компаний и «ещё N».
+
+## Что реализовать на фронте
+
+- `projects/frontend/src/blocks/news-feed/news-feed.tsx`: «Почему для вас» — подписи вместо ID (`industry` → «Отрасль компании», `group_industries` → «Отрасли группы», `supplier_industries` → «Поставщики», `customer_industries` → «Покупатели», `loans` → «Кредиты», `leasing` → «Лизинг», `guarantees` → «Гарантии», `factoring` → «Факторинг», `deposits` → «Депозиты», `customs` → «Внешняя торговля», `payroll` → «Зарплатный проект», `region` → «Регион»).
+- `projects/frontend/src/blocks/insight-reader/insight-reader.tsx`:
+  - «Ход анализа»: для `tool.completed` выводить название шага по `payload.tool` (`company_profile` → «Профиль компании», `company_group` → «Группа компаний», `company_counterparties` → «Поставщики и покупатели», `news_search` → «Поиск новостей», `bank_search` → «Поиск по аналитике банка», `document_read` → «Чтение документа», `evidence_verify` → «Проверка цитат»);
+  - «Почему это важно»: список `reasons` показывать, только если нет `explanations`, и через `featureLabels`.
+
+## Данные и окружение
+
+```sh
+git pull && pnpm install
+pnpm --filter @alfa/research-agent build          # бэкенд берет агента из dist
+unzip bank-ocr.zip                                # распознанные PDF банка (Qwen3.6, сверено вручную), архив передается отдельно
+pnpm --filter @alfa/research-agent ingest --bank
+pnpm --filter @alfa/research-agent news:tag       # после каждого ingest --news; размечаются только новые новости
+```
+
+- В `.env` бэкенда не задавать `LLM_MAX_OUTPUT_TOKENS=2000` (значение по умолчанию 4000; при 2000 JSON обрезался).
+- Перезапускать API и worker после сборки пакета, `ingest` и `news:tag`: данные и промпт читаются при старте. Запуски, шедшие во время обновления, завершатся с `execution_context_changed` — их нужно запустить заново.
+
+## Бюджет
+
+Сводка из 3 событий стоит 0,6–1 ₽, вопрос — 0,3–0,6 ₽. При `RUN_RESERVATION_RUB=25` дневной лимит 500 ₽ исчерпывается резервами за 20 запусков, хотя реальные траты около 15 ₽, и дальше бэкенд отвечает «Дневной бюджет исчерпан». Для частых проверок нужен резерв около 8 ₽ с `LLM_GATEWAY_REQUEST_CAP_RUB=1` (резерв покрывает `(AGENT_MAX_STEPS + 2) × cap`); значение для демо — после подтверждения лимита запроса у шлюза.
+
+## Как проверить
+
+1. Компания U_68157, роль «Финансовый директор», «Обновить сводку».
+2. Лента: метка «Риск», текст — одна-две фразы о смысле для компании, «Почему для вас» по-русски.
+3. Разбор: заполнены «Риски» и «Возможные следующие шаги», одна-две цитаты в «Что произошло».
+4. «Ход анализа»: названия шагов.
+5. «Вопросы»:
+   - «Какие риски?», «Что сделать?», «расскажи кратко», «расскажи в 3 предложениях», «назови 3 риска списком» — разные ответы нужной формы;
+   - «насколько вырастут наши расходы по кредитам?» — ответ без выдуманных сумм и уточняющий вопрос; ответ пользователя с цифрами («кредиты 3 млрд, ставка ключевая + 3%») — расчет «по вашим данным» без нового уточнения;
+   - «привет!» — короткий ответ с подсказкой, о чем спросить.
+6. В `agent_model_calls` у запуска нет ключа `structure` — второй вызов модели не выполнялся.
+
+## уточнение
+
+1. 25р на запрос - слишком много. ни один запрос еще не тратил больше 5р - можно поставить 5-8р для каких-то больших вопросов. 
