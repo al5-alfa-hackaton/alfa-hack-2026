@@ -1,22 +1,13 @@
-# Скриншоты frontend
+# Снимки рабочего пространства
 
-Сняты с работающего приложения через Playwright/Chromium. Только synthetic fixtures; никакие реальные CSV, банковские документы и пользовательские данные не загружаются. Чистый browser context, light по умолчанию, reduced motion, ожидание document.fonts.ready. Reader/sources/conversation — crop реального Sheet, не дорисованный макет.
+Сняты Playwright/Chromium с реальным набором организаторов, без дорисовки. Компания — обезличенный CLIENT из CSV. Генерация отключена до настройки LLM; предупреждение на экране соответствует конфигурации сервиса.
 
-| Файл                | Размер viewport / объект               |
-| ------------------- | -------------------------------------- |
-| feed-desktop.png    | 1440×1000, персональная лента          |
-| insight-reader.png  | Sheet внутри 1440×1000                 |
-| sources.png         | Sheet, раскрытый источник              |
-| conversation.png    | Sheet, реальный сценарный вопрос/ответ |
-| company-desktop.png | 1440×1000, профиль                     |
-| feed-dark.png       | 1440×1000, темная тема                 |
-| feed-tablet.png     | 768×1024                               |
-| feed-mobile.png     | 390×844                                |
+login.png — вход без SSO; company-desktop.png — реальный профиль; feed-desktop.png/feed-dark.png/feed-tablet.png/feed-mobile.png — рабочая область в разных размерах/темах.
 
-Из корня, при запущенном frontend:
+Из корня при работающем frontend/API:
 
 ```sh
-PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium pnpm --filter @alfa/frontend screenshots
+SCREENSHOT_ACCESS_KEY_FILE=.local/access-key-local-owner.txt PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium pnpm --filter @alfa/frontend screenshots
 ```
 
-Для bundled Chromium сначала `pnpm --filter @alfa/frontend exec playwright install chromium`, затем команду без переменной executable. По умолчанию цель — локальный порт 3000; для другого тестового инстанса `SCREENSHOT_BASE_URL`. Скрипт падает при pageerror, не сохраняет localStorage в репозиторий и не меняет приложение ради съемки.
+Ключ читается из игнорируемого файла и не выводится. Скрипт не сохраняет cookies/storage в репозиторий. Для другого инстанса задайте SCREENSHOT_BASE_URL. Снимки источников/вопросов при необходимости следует снимать с подтверждённых реальных результатов после настройки LLM, без подстановки fixtures.

@@ -47,6 +47,6 @@
 
 ## Текущий статус реализации
 
-Frontend реализует этот сценарий на синтетических данных: компания/роль, персональная лента, разбор, источники, вопросы, сохранение, оценки и история. Research отдельно реализует ingestion/tools/agent CLI; сохранены отчеты OCR и моделей. Предметный backend, auth/SSO, durable worker/очередь и соединение frontend с агентом пока не реализованы. Демо не подтверждает end-to-end работу с банковскими данными.
+Frontend работает через Fastify API; профили берутся из набора организаторов, пользовательские действия — из PostgreSQL. Реализованы очередь/worker, LangGraph, ranking/checkpoints, typed OpenAPI client и вход по HttpOnly сессии без SSO. Новая генерация требует настроенного LLM gateway; при его отсутствии нет подмены фикстурами. [Актуальное состояние](12-product-workspace.md).
 
 План интеграции, ограничения реальных полей и нужные ручки: [03-data.md](03-data.md), [05-api-and-ui.md](05-api-and-ui.md), [08-research-integration.md](08-research-integration.md).
