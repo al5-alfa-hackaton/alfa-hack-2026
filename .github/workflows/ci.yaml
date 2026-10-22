@@ -35,7 +35,11 @@ jobs:
       - name: Browser + API + worker
         env:
           DATABASE_URL: postgresql://alfa:alfa_local_only@127.0.0.1:5432/alfa
-          DEV_AUTH: 'true'
+          DEV_AUTH: 'false'
+          AGENT_PROVIDER: 'fixture'
+          CORS_ORIGIN: http://127.0.0.1:3000
+          E2E_ACCESS_KEY: ci-fixture-access-key-never-use-in-production
+          AUTH_USERS_JSON: '[{"id":"e2e-user","token":"ci-fixture-access-key-never-use-in-production","companyIds":["U_1","U_3"]}]'
           TEST_BACKEND: 'true'
         run: |
           pnpm db:migrate

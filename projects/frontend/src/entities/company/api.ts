@@ -4,7 +4,19 @@ export type ServerCompanyContext =
 export type ServerCompany =
   operations['listCompanies']['responses'][200]['content']['application/json']['items'][number]
 export async function loadServerCompanies(signal?: AbortSignal) {
-  return unwrap(await api.GET('/v1/companies', { signal })).items
+  const items: ServerCompany[] = []
+  let cursor: string | undefined
+  do {
+    const page = unwrap(
+      await api.GET('/v1/companies', {
+        params: { query: { limit: 100, cursor } },
+        signal,
+      }),
+    )
+    items.push(...page.items)
+    cursor = page.nextCursor ?? undefined
+  } while (cursor)
+  return items
 }
 export async function loadServerContext(
   companyId: string,

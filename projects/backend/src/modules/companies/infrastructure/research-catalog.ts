@@ -29,6 +29,12 @@ export class ResearchCatalog implements CompanyCatalog {
       }))
   }
   context(id: string): CompanyContext {
+    const missingLabels: Record<string, string> = {
+      revenue: 'Годовая выручка',
+      developmentStage: 'Стадия развития бизнеса',
+      workersSpark: 'Численность сотрудников по СПАРК',
+      customs: 'Сведения о внешней торговле',
+    }
     const company = this.list().find((c) => c.id === id)
     if (!company) throw new AppError('not_found', 'Компания недоступна')
     const p = companyProfile(this.ctx, id)
@@ -101,12 +107,21 @@ export class ResearchCatalog implements CompanyCatalog {
       features,
       gaps: [
         ...new Set([
-          ...p.dataQuality.missingFields,
+          ...p.dataQuality.missingFields.map(
+            (field) => missingLabels[field] ?? 'Дополнительные сведения о компании',
+          ),
           ...features.filter((f) => f.value === null).map((f) => f.label),
         ]),
       ],
       limitations: [
-        ...p.dataQuality.notes,
+        ...p.dataQuality.notes.map((note) =>
+          note
+            .replace(' (scaleBasis = group)', '')
+            .replace(
+              ' Значение 1000 — техническая заглушка, считается отсутствующим.',
+              ' Неизвестные значения не подменяются оценками.',
+            ),
+        ),
         ...(p.dataQuality.duplicateRowsForId
           ? ['В данных есть дубликаты ID; выбран профиль с наибольшей известной выручкой.']
           : []),

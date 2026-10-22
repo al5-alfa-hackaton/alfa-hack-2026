@@ -1,55 +1,45 @@
-# Frontend: упрощенная архитектура по rules.md
+# Frontend: архитектура рабочего пространства
 
-> Обновление backend: [реализованный контур и ограничения MVP](10-backend-implementation.md). Ниже сохранены исходный аудит и целевые требования; наличие пункта в roadmap не означает отсутствие его MVP-реализации.
-
-Основа — [исходные правила пользователя](source/frontend-rules.md). Не вводим дополнительные FSD-слои features/widgets и не раскладываем каждый маленький компонент в пять пустых папок.
+Основа — [правила пользователя](source/frontend-rules.md). Актуальное поведение и авторизация: [12-product-workspace.md](12-product-workspace.md).
 
 ```text
 src/
-  app/                router, routes, providers, styles
-  pages/              feed, company, history, ui-kit
-  blocks/             workspace-shell, context-switcher, news-feed,
-                      analysis-control, insight-reader
-  components/         ui (61 shadcn-примитив), brand, page-heading, empty-state
-  entities/           company, insight, analysis, workspace
-  shared/             lib, hooks
+  app/          TanStack routing, providers, styles
+  pages/        feed, company, history, ui-kit
+  blocks/       workspace-shell, context-switcher, news-feed,
+                analysis-control, insight-reader
+  components/   61 shadcn-примитив, generic empty/loading/error, heading, brand
+  entities/     company, insight, analysis, workspace
+  shared/       typed transport, query client, cn, useIsMobile
 ```
 
 ## Зависимости
 
-`app → pages → blocks → components → entities → shared`. Нижний слой не импортирует верхний. Страницы не импортируют другие страницы. Между blocks/entities допускается практичный cross-import без runtime-цикла. Импорты многосоставного чужого модуля идут через его index.ts.
+`app → pages → blocks → components → entities → shared`. Нижний слой не импортирует верхний; страницы не импортируют другие страницы. Между blocks/entities разрешены практичные cross-imports через публичные index.ts без runtime-цикла. Generic components работают только через props. UI-примитивы импортируются стандартными single-file shadcn paths.
 
-- **app:** TanStack routing, providers и общие стили. Маршруты только связывают URL со страницами. `__root.tsx` — обязательное имя TanStack; `route-tree.gen.ts` — generated file. Эти framework conventions — исключения из обычного kebab-case, не повод менять generator вручную.
-- **pages:** композиция экрана, параметры маршрута, поиск/фильтры и экспорт текущего списка. `/` и `/saved` используют одну FeedPage с prop, а не импорт одной страницы из другой.
-- **blocks:** законченные сценарии с бизнес-данными. Reader содержит внутренние sources/conversation/feedback modules; analysis-control — запуск/отмена/сценарии. Workspace shell работает с session и company context.
-- **components:** только props и отображение. Generic EmptyState составляет shadcn Empty, PageHeading — типографику; они не читают workspace store и не выполняют предметные запросы. Локальные ui-примитивы — самостоятельные single-file modules, импортируются по стандартному shadcn path, а не через общий barrel из 61 компонента.
-- **entities:** типы и данные company/insight/run/session, ranking/answer fixture transformations, schema persisted state. WorkspaceProvider подключается из app; его контекст не требует imports app из blocks.
-- **shared:** abortable delay, cn, useIsMobile. Бизнес-сущностей здесь нет.
+Скрипт check-architecture проверяет imports и циклы при typecheck. Framework-generated route tree имеет стандартные соглашения TanStack, включая __root.tsx.
 
-Скрипт `scripts/check-architecture.mjs` проверяет все source imports, направление слоев, публичные API, запрет page-to-page и runtime-циклы. Type-only ссылка generated route tree обратно на router разрешена: исполняемого цикла не создает. `pnpm typecheck` включает этот check. Для архитектурных правил, выраженных произвольными dynamic imports, нужны дополнительные проверки при их появлении.
+## Состояние
 
-## UI-система
+TanStack Query управляет API-данными, AbortSignal, ошибками, invalidation и polling. DTO выводятся из generated OpenAPI operations; UI не дублирует серверную схему. WorkspaceProvider читает /me, разрешённые компании и контекст. Выход/новый вход очищают cache, 401 инициирует проверку сессии. Ошибка API не переключает данные на fixtures.
 
-Готовые shadcn-компоненты управляют focus/keyboard/modal lifecycle: Sidebar, DropdownMenu, ToggleGroup, Sheet, Tabs, Accordion, Table, Empty, Alert, Progress, Dialog, Textarea, Tooltip и Sonner. Не пишем собственные select/menu/drawer/toast и focus trap. Иконки — Lucide, шрифт — self-hosted Manrope с кириллицей.
+В sessionStorage остаются только company/perspective, отдельно для user ID. Они валидируются против серверного каталога; запрет browser storage не блокирует работу. Сохранения, оценки, замечания, сообщения и история находятся в PostgreSQL. Browser не сохраняет bearer key. Theme preference обслуживает next-themes.
 
-Стиль: нейтральная рамка и рабочее полотно, компактные строки, основной красный акцент Альфы, семантические точки риска/возможности. Нет KPI-плиток, фиолетовых панелей, эффектных баннеров и входного маркетингового шага. Контекст компании и «почему для вас» важнее декора.
+Ключи запросов включают ресурс, компанию/insight и perspective; user boundary обеспечивается очисткой всего QueryClient при смене сессии. Каждый SSR document создаёт отдельный QueryClient, без общего процесса cache между пользователями. Предметные запросы начинаются на клиенте; SSR отображает одинаковое loading state без personal data.
 
-## Состояние и навигация
+## Сценарии
 
-- Маршруты `/`, `/saved`, `/company`, `/history`, `/ui-kit` — реальные TanStack routes: back/reload работают.
-- Reader открыт через `?insight=rate`; deep link и reload сохраняют выбранное событие. При закрытии фокус возвращается к строке.
-- Поиск/фильтр — состояние страницы, сбрасывается при смене компании/роли. Ctrl/Cmd+K фокусирует поиск, не перехватывается открытым reader.
-- Компания/роль, saved, chats, ratings, remarks и history — `alfa-demo-v1` в localStorage, с Zod-валидацией. Повреждение/отказ хранилища явно отображаются. Новое поле remarks мигрируется default-значением; оценка и замечание больше не перетирают друг друга.
-- Scope всех взаимодействий: company + role + insight. Смена контекста закрывает reader и отменяет незавершенное демодействие. История записывается под исходным scope.
-- Отмена/уход со страницы прерывает демо-run через AbortController; это поведение mock adapter, не проектирование production worker. В live фоновый run продолжает работу независимо от вкладки; отмена явная через API.
-- Theme preference обслуживает next-themes. `useEffect` загружает browser session после SSR; до этого Skeleton, без hydration mismatch.
+- / и /saved используют общую FeedPage; /company показывает серверные features/gaps; /history — SQL runs. /ui-kit доступен в dev и убран из рабочей навигации.
+- Reader открывается по ?insight=UUID и независимо запрашивает detail: старые сохранённые версии не обязаны входить в текущую сводку. Компания дополнительно сверяется с активным контекстом. Escape возвращает фокус к строке.
+- Поиск/фильтр сбрасываются при смене контекста. TXT содержит только текущие отфильтрованные загруженные события; saved поддерживает пагинацию.
+- Start/question mutations передают Idempotency-Key и сохраняют его для повтора запроса с неизвестным исходом. Активные задания восстанавливаются по серверной истории; polling в работе 1 с, в простое 15 с. Уход со страницы не отменяет worker.
+- Предыдущая сводка сохраняется при pending/ошибке. Проценты прогресса не выдумываются. Отмена — POST cancel; её результат остаётся в SQL истории.
+- Save/feedback не объявляются успешными до ответа API; pending блокирует повтор. Rating и comment отправляются независимо с сохранением второго значения, version предотвращает запись в другой разбор.
+- Документы и изображения запрашиваются только через authorized API, внешние ссылки — HTTPS. Факты, AI inference и bank position различаются; неизвестные данные и ограничения не заменяются общими советами.
+- Авторизация без SSO: ключ обменивается на HttpOnly cookie; вход и выход — отдельные API операции. CORS/Origin/TTL/Secure описаны в спецификации 12.
 
-## Как заменять mock на backend
+## UI
 
-1. В shared добавить единый HTTP transport: same-origin `/api/v1`, AbortSignal, safe ApiError, credentials и CSRF policy при cookie-auth. Не класть туда company/insight-логику.
-2. В entities добавить DTO schemas/adapters и entity API через публичные index.ts; неизвестные числа не подменять fixtures. Из текущего `company/context` выделить server DTO, убрать допущение только двух CompanyId.
-3. В blocks заменить rankedNews/сценарные answers на entity queries/mutations. Рекомендуется TanStack Query с ключом `(user, companyId, perspective, resource, version, filters)`; сейчас server cache не нужен и не установлен.
-4. Мутации saved/feedback — optimistic UI с rollback. Pending question связывается с run/conversation IDs; reconnect не дублирует сообщение.
-5. Snapshot ленты и новый run раздельны. Progress читает SSE, при обрыве восстанавливает sequence или polling; new insight публикуется только после terminal event.
-6. В live provider не сериализует server data в demo localStorage; logout очищает пользовательский cache. Demo и live adapters переключаются явно, без fallback на synthetic fixtures при сетевой ошибке.
-7. Сначала contract tests Fastify/worker, затем E2E с реальным API. Список ручек и mapping экраны→DTO — [05-api-and-ui.md](05-api-and-ui.md).
+Sidebar, DropdownMenu, ToggleGroup, Sheet, Tabs, Accordion, Table, Empty, Alert, Dialog, Textarea, Tooltip и Sonner — готовые компоненты shadcn/Radix. Нет самодельных focus traps, menu/select/toast или искусственного прогресса. Manrope с кириллицей хранится локально. Нейтральное рабочее полотно, красный основной акцент, компактные списки событий и объяснения их значимости.
+
+Playwright использует изолированный fixture backend, проверяет вход, SQL persistence, scopes, диалоги, источники, ошибки, responsive layout и axe. Снимки README делаются отдельно с реальными загруженными данными; отсутствие настроенного LLM отражается в интерфейсе.

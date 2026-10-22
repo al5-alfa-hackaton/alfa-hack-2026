@@ -1,80 +1,105 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import type { Dispatch, ReactNode, SetStateAction } from 'react'
-import { z } from 'zod'
-import { initialSession, type Session } from './model'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { loadServerCompanies, loadServerContext, type Role } from '@/entities/company'
+import { api, ApiError, unwrap } from '@/shared/lib'
 
-export const storageKey = 'alfa-demo-v1'
-export const sessionSchema = z.object({
-  company: z.enum(['nord', 'retail']),
-  role: z.enum(['cfo', 'ceo']),
-  entered: z.boolean(),
-  saved: z.array(z.string()).max(100),
-  feedback: z.record(z.string(), z.string().max(2000)),
-  remarks: z.record(z.string(), z.string().max(1000)).default({}),
-  chats: z.record(
-    z.string(),
-    z
-      .array(
-        z.object({
-          author: z.enum(['user', 'assistant']),
-          text: z.string().max(4000),
-        }),
-      )
-      .max(100),
-  ),
-  history: z
-    .array(
-      z.object({
-        id: z.string(),
-        company: z.enum(['nord', 'retail']),
-        role: z.enum(['cfo', 'ceo']),
-        at: z.iso.datetime(),
-        status: z.enum(['complete', 'partial', 'empty', 'failed', 'cancelled']),
-      }),
-    )
-    .max(50),
-})
-
-type Workspace = {
-  session: Session
-  setSession: Dispatch<SetStateAction<Session>>
-  ready: boolean
-  storageWarning: boolean
-}
-const WorkspaceContext = createContext<Workspace | null>(null)
-
-export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session>(initialSession)
-  const [ready, setReady] = useState(false)
-  const [storageWarning, setStorageWarning] = useState(false)
+function useWorkspaceState() {
+  const cache = useQueryClient()
+  const [companyId, setCompanyId] = useState('')
+  const [role, setRole] = useState<Role>('cfo')
+  const [preferencesUser, setPreferencesUser] = useState<string | null>(null)
+  const me = useQuery({
+    queryKey: ['me'],
+    queryFn: async ({ signal }) => unwrap(await api.GET('/v1/me', { signal })),
+    refetchInterval: 60_000,
+    retry: false,
+  })
+  const unauthorized = me.error instanceof ApiError && me.error.status === 401
+  const user = unauthorized ? undefined : me.data
+  const companies = useQuery({
+    queryKey: ['companies', user?.id],
+    queryFn: ({ signal }) => loadServerCompanies(signal),
+    enabled: !!user,
+  })
+  const company = companies.data?.find((c) => c.id === companyId) ?? companies.data?.[0]
+  const session = { company: company?.id ?? '', role }
   useEffect(() => {
+    if (!user || preferencesUser === user.id) return
     try {
-      const raw = localStorage.getItem(storageKey)
-      if (raw) {
-        const parsed = sessionSchema.safeParse(JSON.parse(raw))
-        if (parsed.success) setSession(parsed.data)
-        else setStorageWarning(true)
+      const saved: unknown = JSON.parse(
+        sessionStorage.getItem('alfa-workspace:' + user.id) ?? 'null',
+      )
+      if (
+        saved &&
+        typeof saved === 'object' &&
+        'company' in saved &&
+        'role' in saved &&
+        typeof saved.company === 'string' &&
+        saved.company.length <= 100 &&
+        (saved.role === 'cfo' || saved.role === 'ceo')
+      ) {
+        setCompanyId(saved.company)
+        setRole(saved.role)
       }
     } catch {
-      setStorageWarning(true)
+      /* Preferences are optional; server data never depends on browser storage. */
     }
-    setReady(true)
-  }, [])
+    setPreferencesUser(user.id)
+  }, [user?.id, preferencesUser])
   useEffect(() => {
-    if (!ready) return
+    if (!user || preferencesUser !== user.id || !company) return
     try {
-      localStorage.setItem(storageKey, JSON.stringify(session))
+      sessionStorage.setItem('alfa-workspace:' + user.id, JSON.stringify(session))
     } catch {
-      setStorageWarning(true)
+      /* A storage restriction must not block the workspace. */
     }
-  }, [ready, session])
-  const value = useMemo(
-    () => ({ session, setSession, ready, storageWarning }),
-    [session, ready, storageWarning],
-  )
+  }, [user?.id, preferencesUser, session.company, session.role])
+  const context = useQuery({
+    queryKey: ['context', user?.id, session.company],
+    queryFn: ({ signal }) => loadServerContext(session.company, signal),
+    enabled: !!user && !!company,
+  })
+  return {
+    user,
+    unauthorized,
+    session,
+    company,
+    companies: companies.data ?? [],
+    context,
+    ready: !!user && companies.isSuccess && preferencesUser === user.id,
+    loading: me.isPending || (!!user && (companies.isPending || preferencesUser !== user.id)),
+    error: unauthorized ? null : (me.error ?? companies.error),
+    retry: () => {
+      void me.refetch()
+      void companies.refetch()
+    },
+    setScope: (scope: { company?: string; role?: Role }) => {
+      if (scope.company !== undefined) setCompanyId(scope.company)
+      if (scope.role) setRole(scope.role)
+    },
+    login: async (token: string) => {
+      unwrap(await api.POST('/v1/session', { body: { token } }))
+      cache.clear()
+      setCompanyId('')
+      setRole('cfo')
+      setPreferencesUser(null)
+      await me.refetch()
+    },
+    logout: async () => {
+      unwrap(await api.DELETE('/v1/session'))
+      cache.clear()
+      setCompanyId('')
+      setRole('cfo')
+      setPreferencesUser(null)
+      await me.refetch()
+    },
+  }
+}
+const WorkspaceContext = createContext<ReturnType<typeof useWorkspaceState> | null>(null)
+export function WorkspaceProvider({ children }: { children: ReactNode }) {
+  const value = useWorkspaceState()
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>
 }
-
 export function useWorkspace() {
   const context = useContext(WorkspaceContext)
   if (!context) throw new Error('WorkspaceProvider is required')

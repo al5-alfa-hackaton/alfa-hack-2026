@@ -4,7 +4,7 @@
 
 ## Реализовано
 
-- **Frontend:** `/`, `/saved`, `/company`, `/history`, `/ui-kit`; компании/роли, фильтры и поиск, разбор, источники, вопросы, оценки и замечания, экспорт, история, отмена и ошибочные состояния. Шесть синтетических событий, с отдельной вкладкой «Данные сервиса» на /company. Основные demo-экраны пока локальные. Данные изолированы по компании/роли и хранятся локально.
+- **Frontend:** все рабочие экраны используют API и PostgreSQL, TanStack Query; вход по HttpOnly сессии без SSO. Browser fixtures и сценарные ответы удалены. [Актуальный контур](12-product-workspace.md).
 - **Research:** CLI-пакет `@alfa/research-agent`: CSV и связи, RSS, OCR PDF, BM25 с русским стеммингом, семь tools и собственный LangGraph-цикл. [Код и инструкции](../research/agent/README.md). Raw/processed данные вне Git. Офлайн-тесты работают на fixtures.
 - **Backend:** Fastify/Drizzle/PostgreSQL, `/health`, `/ready`. P0 REST/SSE, server-side bearer scope, SQL migrations, BullMQ/Redis worker, global budget reservations, LangGraph adapter и generated frontend types. [Текущее состояние и ограничения](10-backend-implementation.md).
 
@@ -35,3 +35,5 @@ Fixture-проверки не означают выполненный платн
 5. Выбранная роль CFO/CEO становится `perspective`, а не правом доступа. Membership проверяет сервер.
 6. Вывод публикуется после валидации структуры и источников. CLI-текст, local path и одна совпавшая цитата не являются готовым безопасным DTO.
 7. Платные OCR/comparison не входят в обычные тесты. Бюджет 500 ₽/день и разрешенные модели следуют PDF; действующие API IDs и наблюдения — в [08](08-research-integration.md).
+
+[12-product-workspace.md](12-product-workspace.md) — текущий продуктовый UI, сессии без SSO, реальные данные, локальный OCR и ограничения конфигурации.

@@ -29,14 +29,17 @@ services:
     <<: *app-build
     profiles: [apps]
     command: [pnpm, --filter, '@alfa/backend', dev]
+    env_file: &backend-files
+      - path: projects/backend/.env
+        required: false
+    volumes: &data-volumes [./data:/app/data:ro]
     environment: &backend-env
       HOST: 0.0.0.0
       PORT: 3001
       CORS_ORIGIN: http://localhost:3000
       DATABASE_URL: postgresql://alfa:alfa_local_only@postgres:5432/alfa
       REDIS_URL: redis://redis:6379
-      DEV_AUTH: 'true'
-      AGENT_PROVIDER: fixture
+      DATA_DIR: /app/data
     ports: ['127.0.0.1:3001:3001']
     depends_on:
       postgres: { condition: service_healthy }
@@ -67,6 +70,8 @@ services:
     <<: *app-build
     profiles: [apps]
     command: [pnpm, --filter, '@alfa/backend', worker]
+    env_file: *backend-files
+    volumes: *data-volumes
     environment: *backend-env
     depends_on:
       migrate: { condition: service_completed_successfully }

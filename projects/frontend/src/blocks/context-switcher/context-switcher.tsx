@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { ChevronsUpDown } from 'lucide-react'
-import { companies, roles, type CompanyId, type Role } from '@/entities/company'
+import { roles, type Role } from '@/entities/company'
 import { useWorkspace } from '@/entities/workspace'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,10 +14,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 export function ContextSwitcher() {
-  const { session, setSession } = useWorkspace()
+  const { session, setScope, companies, company } = useWorkspace()
   const navigate = useNavigate()
-  function change(value: { company?: CompanyId; role?: Role }) {
-    setSession((s) => ({ ...s, ...value, entered: true }))
+  function change(value: { company?: string; role?: Role }) {
+    setScope(value)
     void navigate({ to: '/', search: {} })
   }
   return (
@@ -27,10 +27,11 @@ export function ContextSwitcher() {
           variant="ghost"
           className="h-auto w-full justify-start gap-3 px-2 py-3 text-left"
           aria-label="Выбрать компанию и роль"
+          disabled={!companies.length}
         >
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-semibold">
-              {companies[session.company].name}
+              {company?.displayName ?? 'Нет компаний'}
             </span>
             <span className="mt-1 block truncate text-xs font-normal text-muted-foreground">
               {roles[session.role]}
@@ -40,15 +41,15 @@ export function ContextSwitcher() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="bottom" className="w-72">
-        <DropdownMenuLabel>Учебная компания</DropdownMenuLabel>
+        <DropdownMenuLabel>Компания</DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={session.company}
-          onValueChange={(v) => change({ company: v as CompanyId })}
+          onValueChange={(company) => change({ company })}
         >
-          {Object.entries(companies).map(([id, c]) => (
-            <DropdownMenuRadioItem key={id} value={id}>
+          {companies.map((c) => (
+            <DropdownMenuRadioItem key={c.id} value={c.id}>
               <span>
-                {c.name}
+                {c.displayName}
                 <span className="block text-xs font-normal text-muted-foreground">
                   {c.industry}
                 </span>
@@ -60,7 +61,7 @@ export function ContextSwitcher() {
         <DropdownMenuLabel>Ваша роль</DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={session.role}
-          onValueChange={(v) => change({ role: v as Role })}
+          onValueChange={(role) => change({ role: role as Role })}
         >
           {Object.entries(roles).map(([id, label]) => (
             <DropdownMenuRadioItem key={id} value={id}>

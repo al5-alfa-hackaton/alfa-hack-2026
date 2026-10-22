@@ -1,2 +1,1 @@
-export * from './model'
-export { WorkspaceProvider, useWorkspace, sessionSchema, storageKey } from './workspace-context'
+export { WorkspaceProvider, useWorkspace } from './workspace-context'

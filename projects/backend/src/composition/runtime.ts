@@ -32,18 +32,25 @@ export async function compose(config: Config) {
     reservation: config.AGENT_PROVIDER === 'fixture' ? 0 : config.RUN_RESERVATION_RUB,
     limit: config.DAILY_BUDGET_RUB,
     mode: config.AGENT_PROVIDER === 'fixture' ? 'fixture' : 'research',
+    available: config.AGENT_PROVIDER !== 'disabled',
   })
   const documents = new ResearchDocuments(data, store, config.DATA_DIR)
   const agent =
-    config.AGENT_PROVIDER === 'fixture'
-      ? new FixtureRuntime(catalog, data)
-      : new LangGraphRuntime(
-          config,
-          catalog,
-          data,
-          store,
-          database ? new CheckpointRuntime(database.pool, config.AGENT_MAX_STEPS + 2) : undefined,
-        )
+    config.AGENT_PROVIDER === 'disabled'
+      ? {
+          execute: async (): Promise<never> => {
+            throw new AppError('unavailable', 'Сервис анализа не подключён')
+          },
+        }
+      : config.AGENT_PROVIDER === 'fixture'
+        ? new FixtureRuntime(catalog, data)
+        : new LangGraphRuntime(
+            config,
+            catalog,
+            data,
+            store,
+            database ? new CheckpointRuntime(database.pool, config.AGENT_MAX_STEPS + 2) : undefined,
+          )
   return { database, catalog, companies, analytics, documents, store, agent }
 }
 export type Runtime = Awaited<ReturnType<typeof compose>>
