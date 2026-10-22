@@ -8,6 +8,7 @@ const schema = z.object({
   LLM_API_KEY: z.string().min(1).optional(),
   LLM_MODEL_AGENT: z.string().min(1).optional(),
   LLM_MODEL_VISION: z.string().min(1).optional(),
+  LLM_MODEL_TAGGER: z.string().min(1).default('deepseek/deepseek-v4.1-flash'),
   LLM_REASONING_EFFORT: z.enum(['none', 'low', 'medium', 'high']).default('none'),
   AGENT_MAX_STEPS: z.coerce.number().int().min(1).max(50).default(12),
   AGENT_MAX_TOOL_CALLS: z.coerce.number().int().min(1).max(100).default(20),
@@ -32,6 +33,7 @@ export function dataPaths(config: Pick<Config, 'DATA_DIR'>) {
     bankPages: `${processed}/bank-pages`,
     bankOcr: `${processed}/bank-ocr`,
     news: `${processed}/news.json`,
+    newsTags: `${processed}/news-tags.json`,
     processed,
   }
 }

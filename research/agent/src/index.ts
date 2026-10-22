@@ -22,3 +22,11 @@ export {
   type DraftClaim,
   type FeedNote,
 } from './agent/feed-parser.js'
+export { loadNewsTags, type NewsTag, type NewsTags } from './news/tagging.js'
+export {
+  rankNewsForCompany,
+  companyExposures,
+  tagCoverage,
+  ML_RANKING_VERSION,
+  type RankedNewsItem,
+} from './news/ranking.js'

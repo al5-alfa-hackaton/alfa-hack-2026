@@ -11,6 +11,8 @@
     "llm:smoke": "tsx --env-file-if-exists=.env src/cli/llm-smoke.ts",
     "agent:compare": "tsx --env-file-if-exists=.env src/cli/agent-compare.ts",
     "agent": "tsx --env-file-if-exists=.env src/cli/run-agent.ts",
+    "news:tag": "tsx --env-file-if-exists=.env src/cli/news-tag.ts",
+    "news:rank": "tsx --env-file-if-exists=.env src/cli/news-rank.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc -p tsconfig.build.json"
