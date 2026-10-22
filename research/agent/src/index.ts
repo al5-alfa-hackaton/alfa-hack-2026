@@ -13,3 +13,12 @@ export {
   evidenceVerify,
 } from './tools/functions.js'
 export { type ToolCallRecord } from './tools/index.js'
+export {
+  parseFeedAnswer,
+  toStructuredDraft,
+  createFeedFinalizer,
+  type FeedParseResult,
+  type ParsedEvent,
+  type DraftClaim,
+  type FeedNote,
+} from './agent/feed-parser.js'
