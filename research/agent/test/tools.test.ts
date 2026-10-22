@@ -35,6 +35,7 @@ describe('company tools', () => {
   it('finds group members and companies sharing a linked person', () => {
     const group = companyGroup(ctx, 'U_1')
     expect(group.members.map((m) => m.id)).toEqual(['U_2'])
+    expect(group.memberIndustries).toEqual([{ name: 'Торговля оптовая металлами и металлическими рудами', companies: 1 }])
     expect(group.affiliatedViaPersons).toMatchObject([{ id: 'U_3', sharedPersons: 1 }])
   })
 

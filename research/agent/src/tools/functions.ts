@@ -138,6 +138,8 @@ export function companyGroup(ctx: DataContext, companyId: string, limit = 20) {
   })
 
   const group = company.groupId ? groupRevenueOf(ctx, company.groupId) : null
+  const industries = new Map<string, number>()
+  for (const c of members) if (c.okvedName) industries.set(c.okvedName, (industries.get(c.okvedName) ?? 0) + 1)
   const divisions = new Map<string, number>()
   for (const c of [company, ...members]) {
     const d = okvedDivision(c.okvedCode)
@@ -150,6 +152,7 @@ export function companyGroup(ctx: DataContext, companyId: string, limit = 20) {
     groupRevenue: group?.revenue ?? company.revenue,
     groupCompaniesWithoutRevenue: group?.companiesWithoutRevenue ?? (company.revenue === null ? 1 : 0),
     groupOkvedDivisions: [...divisions].sort((a, b) => b[1] - a[1]).map(([okvedDivision, companies]) => ({ okvedDivision, companies })),
+    memberIndustries: [...industries].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([name, companies]) => ({ name, companies })),
     members: members.slice(0, limit).map((c) => briefCompany(ctx, c)),
     affiliatedViaPersons: affiliated,
   }
