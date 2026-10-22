@@ -1,53 +1,56 @@
-# Архитектура и стек
-
-## Текущий шаблон
+# Архитектура: текущее состояние и целевой контур
 
 ```text
-specs/                    требования и проектные решения
-projects/
-  frontend/               React + TanStack Start + shadcn/ui
-  backend/                Fastify + Drizzle + PostgreSQL adapter
-research/                 резерв под агентные исследования (.gitkeep)
+projects/frontend/       React / TanStack Start / shadcn/ui
+projects/backend/        Fastify / Drizzle / PostgreSQL
+research/agent/          CLI данных, инструментов и агента
+specs/                   требования и план реализации
+docs/screenshots/        снимки действующего frontend
 ```
 
-| Слой | Выбор | Обоснование |
-| --- | --- | --- |
-| Runtime | Node.js 24, pnpm 11 | Единый TS-стек, версии зафиксированы manifest/lockfile |
-| Web | React 19, TanStack Start/Router, Vite | SSR, файловые маршруты и типизированная навигация |
-| UI | shadcn/ui, Tailwind CSS 4, Lucide | Полный набор исходников компонентов внутри frontend; доступность через UI-примитивы |
-| API | Fastify 5, Zod | Отдельный сервис и валидация конфигурации; в будущем схем запросов |
-| SQL | Drizzle ORM/Kit, pg, PostgreSQL 17 | Типизированные запросы, versioned migrations |
-| Проверки | TypeScript, Vitest | Типы всех UI-компонентов и технические HTTP-контракты backend |
-| SSR build | Nitro | Выход `.output/server/index.mjs`; версия закреплена, используем beta по текущей интеграции Start |
+Версии определены manifests и lockfile: Node 24.19.0, pnpm 11.25.0, React 19, Tailwind 4, Vite/Nitro. Manrope с кириллицей обслуживается самим приложением. Frontend использует существующие локальные shadcn-компоненты, преимущественно Radix; combobox использует Base UI.
 
-Версии пакетов в package.json и `pnpm-lock.yaml` — источник истины. Обновлять зависимости с повторной сборкой, особенно Start/Router/Vite/Nitro. Общие библиотеки пока не выделяются: два workspace-пакета без лишних абстракций.
-
-Fastify владеет предметными данными, авторизацией и orchestration. Start отвечает за отображение и SSR; бизнес-API не дублируется в server functions фронтенда. `/api/*` проксируется Nitro на Fastify с удалением `/api` в dev и в собранном приложении. Адрес `API_PROXY_TARGET` задается при dev-запуске/сборке; production ingress, auth и TLS пока не настраиваются.
-
-## Планируемая схема
+## Сейчас
 
 ```mermaid
 flowchart LR
-    Browser[React / TanStack Start] -->|REST + SSE| API[Fastify API]
-    API --> PG[(PostgreSQL / Drizzle)]
-    API -->|outbox dispatch| Queue[(Redis / BullMQ)]
-    Queue --> Worker[Backend worker process]
-    Worker --> Runtime[Собственный агентный runtime / адаптер harness]
-    Runtime --> Tools[Контролируемые инструменты / MCP gateway]
-    Tools --> Corpus[Новости + аналитика банка + профили]
-    Runtime --> Models[Разрешенные LLM через gateway]
-    Worker --> PG
-    API -->|persisted events| Browser
+    UI[Frontend demo] --> Fixtures[Синтетические события и профили]
+    UI --> Storage[localStorage]
+    UI -. health / ready .-> API[Fastify]
+    API --> DB[(PostgreSQL)]
+    CLI[Research CLI] --> Corpus[CSV / RSS / OCR]
+    CLI --> Graph[Собственный LangGraph-цикл]
+    Graph --> Gateway[LLM gateway]
 ```
 
-Это будущая архитектура. В текущем compose есть PostgreSQL и dev-приложения в профиле `apps`. Redis, воркер, gateway, RAG и SSE пока не подключены.
+Пунктир — техническая проверка, не предметная интеграция. Frontend не вызывает research и платные модели; backend не импортирует CLI/граф.
 
-## Два сервиса и воркер
+## Целевая схема
 
-Два проекта — frontend и backend. Воркер в дальнейшем будет отдельным процессом/контейнером из **того же backend-пакета**, а не третьим проектом. API не исполняет длительный анализ в HTTP-запросе и не запускает shell-команды из пользовательского ввода. Масштабирование API и воркеров независимое. PostgreSQL хранит результаты и состояния; Redis служит транспортом задач, не единственной копией результата.
+```mermaid
+flowchart LR
+    UI[Frontend] -->|REST и SSE| API[Fastify + auth/membership]
+    API --> DB[(PostgreSQL: данные, runs, events, outbox)]
+    DB --> Dispatcher[Outbox dispatcher]
+    Dispatcher --> Q[(Redis / BullMQ)]
+    Q --> W[Backend worker process]
+    W --> Core[Agent-core из research]
+    Core --> Tools[Серверные scoped tools / BM25]
+    Core --> LLM[Разрешенные модели]
+    W --> DB
+    DB -->|Сохраненные события и результат| API
+```
 
-## Запуск и инфраструктура
+- **Frontend:** `app → pages → blocks → components → entities → shared`. Start отвечает за routing/SSR/UI. Логика доступа, инструменты и ключи — на сервере. [Подробности](07-frontend-architecture.md).
+- **API:** проверяет session, membership, входы и idempotency; создает долговечный run и быстро возвращает 202. Аналитический `perspective=cfo|ceo` не повышает `userRole`.
+- **Worker:** отдельный entrypoint/контейнер того же backend-пакета, независимый от HTTP. Run scope повторно проверяется перед запуском.
+- **Research → core:** нельзя вызывать top-level CLI через shell. Нужна import-safe библиотека с exports/build/types: загрузка контекста, tools, graph, валидатор результата, adapters хранения/бюджета. CLI остается потребителем. Текущий research-пакет production export contract не предоставляет.
+- **Хранение:** SQL — источник истины для прав, runs, результатов и events. Versioned BM25-корпус загружается worker один раз на версию. Redis — транспорт, не единственная копия ответа. PDF/страницы доступны только через auth endpoint, не через filesystem path.
 
-Сейчас `pnpm dev` запускает frontend:3000 и backend:3001. Без DATABASE_URL можно разрабатывать оболочку; `/ready` явно показывает `database: not_configured`. После копирования backend `.env.example` и `pnpm infra:up` readiness проверяет SQL через Drizzle. Это не проверка предметных миграций: таблиц еще нет.
+## Окружения
 
-В дальнейшем единый Docker Compose должен запускать frontend, API, worker, Postgres и Redis с healthchecks, отдельным шагом миграций, без destructive reset. Данные сохраняются в volumes; ключи не в image и не в Git. Сейчас compose поднимает dev-приложения и PostgreSQL; итоговая production-схема и worker остаются задачами реализации.
+`pnpm dev`: frontend:3000, backend:3001. Для browser demo backend не нужен. Nitro `/api/**` снимает `/api`; target задается `API_PROXY_TARGET` при dev/сборке.
+
+Compose profile `apps` запускает dev-приложения и PostgreSQL; worker/Redis не добавлены. `/ready` с DATABASE_URL проверяет SQL, без URL честно сообщает `not_configured`. Это не проверка предметного продукта.
+
+Research имеет отдельный `.env` и dataset directory; офлайн-тесты не требуют gateway. В production еще нужны ingress/TLS, session/auth, CSRF policy при cookie-auth, migrations job, worker/Redis, retention, backup и observability. Dockerfile сейчас — среда разработки.
