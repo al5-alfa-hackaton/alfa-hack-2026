@@ -558,7 +558,7 @@ describe.skipIf(!enabled)('PostgreSQL + Redis + actual worker', () => {
       calls++
       const content =
         calls === 1
-          ? 'Исследование'
+          ? `Событие ${news.id}\nФакт: «${news.text}» [${news.id}]`
           : JSON.stringify({
               events: [
                 {

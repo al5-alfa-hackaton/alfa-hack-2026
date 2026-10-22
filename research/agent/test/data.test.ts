@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { join } from 'node:path'
 import { locateSources } from '../src/agent/sources.js'
 import { chunkPage, normalizePageText } from '../src/data/bank.js'
 import { buildDataContext } from '../src/data/context.js'
@@ -107,7 +108,7 @@ describe('answer sources', () => {
     ].join('\n')
     const sources = locateSources(answer, ctx, { bankPdfDir: '/pdf', bankPages: '/pages' })
     expect(sources.map((s) => s.where)).toEqual([
-      ['/pdf/test.pdf', '/pages/bank_test/p01.png'],
+      [join('/pdf', 'test.pdf'), join('/pages', 'bank_test', 'p01.png')],
       ['https://www.interfax.ru/test'],
       ['не удалось сопоставить с документом'],
     ])

@@ -38,6 +38,12 @@ export class ResearchCatalog implements CompanyCatalog {
     const company = this.list().find((c) => c.id === id)
     if (!company) throw new AppError('not_found', 'Компания недоступна')
     const p = companyProfile(this.ctx, id)
+    const group = companyGroup(this.ctx, id)
+    const groupIndustries = group.memberIndustries
+      .slice(0, 5)
+      .map((entry) => `${entry.name} — ${entry.companies}`)
+    if (group.memberIndustries.length > 5)
+      groupIndustries.push(`ещё ${group.memberIndustries.length - 5}`)
     const counterparties = companyCounterparties(this.ctx, id)
     const relatedIndustries = (side: unknown) => {
       const s = side as {
@@ -50,9 +56,10 @@ export class ResearchCatalog implements CompanyCatalog {
         : null
     }
     const features = [
-      ...(['leasing', 'deposits', 'payroll', 'factoring'] as const).map((key) => ({
+      ...(['guarantees', 'leasing', 'deposits', 'payroll', 'factoring'] as const).map((key) => ({
         id: key,
         label: {
+          guarantees: 'Гарантии в Альфа-Банке',
           leasing: 'Лизинг',
           deposits: 'Депозиты',
           payroll: 'Зарплатный проект',
@@ -63,10 +70,7 @@ export class ResearchCatalog implements CompanyCatalog {
       {
         id: 'group_industries',
         label: 'Отрасли участников группы',
-        value:
-          companyGroup(this.ctx, id)
-            .members.flatMap((m) => (m.okvedName ? [m.okvedName] : []))
-            .join('; ') || null,
+        value: groupIndustries.join('; ') || null,
       },
       {
         id: 'supplier_industries',

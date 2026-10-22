@@ -33,6 +33,20 @@ const steel = [
   { id: 'loans', value: 'true' },
 ]
 describe('explainable company ranking', () => {
+  it('matches gas with Cyrillic word boundaries but not unrelated words', () => {
+    const gas = [{ ...news[0]!, title: 'Цены на газ снизились', text: 'Поставки газа выросли.' }]
+    expect(
+      rankNews(gas, [{ id: 'industry', value: 'Добыча природного газа' }], 'ceo', at),
+    ).toHaveLength(1)
+    expect(
+      rankNews(gas, [{ id: 'industry', value: 'Розничная торговля в магазинах' }], 'ceo', at),
+    ).toEqual([])
+  })
+  it('selects ten events by default and honors a larger explicit limit', () => {
+    const corpus = Array.from({ length: 15 }, (_, index) => ({ ...news[0]!, id: `event-${index}` }))
+    expect(rankNews(corpus, steel, 'cfo', at)).toHaveLength(10)
+    expect(rankNews(corpus, steel, 'cfo', at, undefined, 12)).toHaveLength(12)
+  })
   it('changes the selected events for different company industries', () => {
     expect(rankNews(news, steel, 'ceo', at).some((r) => r.news.id === 'steel')).toBe(true)
     const retail = rankNews(news, [{ id: 'industry', value: 'Розничная торговля' }], 'ceo', at)

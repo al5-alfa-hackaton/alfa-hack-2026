@@ -29,7 +29,10 @@ export async function compose(config: Config) {
   const store = database ? new PostgresStore(database.db, config.RUN_MAX_RECOVERIES) : unavailable
   const companies = new Companies(catalog)
   const analytics = new Analytics(store, companies, {
-    reservation: config.AGENT_PROVIDER === 'fixture' ? 0 : config.RUN_RESERVATION_RUB,
+    reservation:
+      config.AGENT_PROVIDER === 'fixture' || config.ALLOW_UNCAPPED_LLM
+        ? 0
+        : config.RUN_RESERVATION_RUB,
     limit: config.DAILY_BUDGET_RUB,
     mode: config.AGENT_PROVIDER === 'fixture' ? 'fixture' : 'research',
     available: config.AGENT_PROVIDER !== 'disabled',

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { RefreshCw } from 'lucide-react'
-import { roles } from '@/entities/company'
+import { roles, relevanceReason } from '@/entities/company'
+import { runErrorMessage } from '@/entities/analysis'
 import { useFeed, useInsight, type Kind } from '@/entities/insight'
 import { useWorkspace } from '@/entities/workspace'
 import { errorMessage } from '@/shared/lib'
@@ -30,7 +31,13 @@ export function FeedPage({ saved = false }: { saved?: boolean }) {
   const filtered = items.filter(
     (item) =>
       (filter === 'all' || item.kind === filter) &&
-      (item.event.title + ' ' + item.summary + ' ' + item.relevance.reasons.join(' '))
+      (
+        item.event.title +
+        ' ' +
+        item.summary +
+        ' ' +
+        item.relevance.reasons.map(relevanceReason).join(' ')
+      )
         .toLocaleLowerCase('ru')
         .replaceAll('ё', 'е')
         .includes(search),
@@ -119,7 +126,7 @@ export function FeedPage({ saved = false }: { saved?: boolean }) {
       {!saved && analysis.latest?.status === 'failed' && (
         <Alert variant="destructive" className="mb-6">
           <AlertTitle>Не удалось обновить сводку</AlertTitle>
-          <AlertDescription>{analysis.latest.error ?? 'Повторите попытку.'}</AlertDescription>
+          <AlertDescription>{runErrorMessage(analysis.latest.error)}</AlertDescription>
         </Alert>
       )}
       {!saved && analysis.latest?.status === 'partial' && (
