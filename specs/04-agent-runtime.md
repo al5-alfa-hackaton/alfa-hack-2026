@@ -1,97 +1,61 @@
-# Агент, harness, очередь и MCP
+# Агентный runtime: research и backend
 
-Статус: проектное решение. Сейчас нет LLM-вызовов, runtime, Redis, BullMQ, MCP-серверов или worker entrypoint.
+## Что реализовано
 
-## Что означает собственная агентная логика
+`buildAgentGraph`: agent → tools → agent, выход answered или limit. Модель выбирает инструменты; собственные tools, prompt, правила и лимиты реализует команда. LangGraph — orchestration-библиотека. Готовый автономный OpenCode не используется; оснований заменять им текущую логику не найдено (PDF, с. 7, 18).
 
-PDF (с. 7) требует планирования, инструментов, общего контекста, самопроверки и адаптации. На с. 18 дополнительно запрещены внешние AI-сервисы, автономные AI-агенты и готовые мультиагентные системы в качестве основного компонента. Поэтому запуска готового coding agent с промптом «сделай анализ» недостаточно и потенциально противоречит условиям.
+Семь tools: company_profile, company_group, company_counterparties, news_search, bank_search, document_read, evidence_verify. Company ID приходит из серверного configurable.companyId.
 
-Базовый путь: команда реализует собственную ограниченную state machine и инструменты, используя разрешенные LLM. Один агент достаточен; несколько — только при функционально обоснованном разделении.
+Лимиты: 12 agent-node вызовов, 20 запрошенных tool calls. Batch сверх лимита не исполняется; затем модель делает дополнительный финальный вызов без tools. Этот вызов тоже стоит денег, хотя счетчик steps его не учитывает.
 
-```text
-validate scope → build company context → plan → retrieve news and bank analysis
-  → extract facts → rank → interpret → verify evidence and contradictions
-  → [bounded additional retrieval / correction] → persist structured insight
+Prompt требует цитирования и самопроверки, но graph **не принуждает** выполнить evidence_verify и не валидирует финальный structured DTO. Checkpointer не подключен: state в памяти; CLI сохраняет только итоговый JSON. Текст и эвристический locateSources — исследовательский выход, не безопасный API-ответ.
+
+## Зачем отдельный worker
+
+Для длительных вопросов, retries, отмены и общего бюджета нужен BullMQ/Redis и отдельный worker process в backend-пакете. Не запускать CLI shell-строкой и не ждать всю модель в HTTP-запросе. Два прикладных проекта сохраняются.
+
+```mermaid
+sequenceDiagram
+    participant UI as Frontend
+    participant API as Fastify
+    participant DB as PostgreSQL
+    participant Q as BullMQ
+    participant W as Backend worker
+    UI->>API: POST analysis-runs + Idempotency-Key
+    API->>DB: membership + transaction(run, outbox)
+    API-->>UI: 202 runId / status / events URL
+    DB->>Q: dispatcher delivers job
+    Q->>W: runId + profile/corpus versions
+    W->>DB: lease + budget reservation
+    W->>W: graph / tools / verification
+    W->>DB: checkpoints, events, validated result
+    UI->>API: SSE + Last-Event-ID
+    API->>DB: events after cursor
+    API-->>UI: progress / terminal / result reference
 ```
 
-Каждый переход фиксирует входы, валидированный результат, использованные источники, версию профиля, вызовы tools, модель, расход и outcome. При недостатке сведений результат содержит `insufficient_evidence`/`partial`, не придуманную аналитику.
+RunContext: runId, userId, разрешенный companyId, perspective, corpus/profile/prompt versions, budget reservation, deadline и AbortSignal. Worker повторяет membership/CLIENT-проверку. CLI-проверка сама по себе не защищает HTTP.
 
-## Harness: возможная роль и условие выбора
+Состояния: queued → running → completed|partial|failed|cancelled, при отмене возможен cancelling. `stopReason=limit` не означает успех: при достаточной проверке — partial, иначе failed/insufficient evidence. Предыдущий успешный insight хранится отдельно от нового run.
 
-Название «OpenCoda» пока трактуется как **OpenCode**, но конкретный продукт и версия не подтверждены. Harness может предоставлять только транспорт сообщений, технический lifecycle сессии и доставку tool calls. Планирование, поиск, анализ, ранжирование, проверка и формирование вывода остаются нашими явными алгоритмами и шагами.
+## Надежность и бюджет
 
-До включения проверить:
+1. SQL outbox, детерминированные job IDs, idempotency keys; доставка at least once, не exactly once.
+2. Run/step/toolCall IDs, lease и durable checkpoints; повтор не должен публиковать дубликат или повторять завершенные tools вслепую.
+3. Retry только transient timeout/429/5xx с backoff/jitter. Учитывать встроенные maxRetries=2 gateway-клиента; не перемножать внешние retries без лимита. Validation/access/budget errors не повторять автоматически.
+4. Общая атомарная квота всех worker: резерв до вызова, сверка usage после. Отсутствие usage.cost — неизвестная стоимость, **не ноль**. Research costOf сейчас возвращает 0 при отсутствии поля: доработать перед production.
+5. Бюджет 500 ₽/день. В README research указан сброс 03:00 МСК; подтвердить gateway-контрактом. Валюта usage.cost и конвертация должны быть явными до сравнения с рублевым бюджетом.
+6. Отмена — SQL-флаг + AbortSignal модели/tools, проверка перед каждым шагом и публикацией. Удаление job не отменяет сетевой запрос. Не публиковать отмененный результат.
+7. Graceful shutdown прекращает прием jobs и сохраняет checkpoint. Redis требует persistence и подходящей BullMQ memory policy.
 
-- Допускают ли организаторы именно такое использование готовой оболочки. До ответа собственный runtime остается вариантом по умолчанию.
-- Можно ли отключить встроенные агенты, default provider/model, shell, запись файлов, автоматическую установку/обновление плагинов и сетевой доступ вне allowlist.
-- Можно ли подключить только разрешенные model IDs, свои инструменты/политику, JSON-схемы и полный audit trail.
-- Можно ли прервать модель/tool call, восстановить checkpoint, задать timeout/budget и отделить рабочие каталоги/контекст компаний.
-- Лицензию, версию, поверхность секретов и воспроизводимость. Сейчас совместимость ни с одним harness не проверена.
+Стартовые caps для нагрузочного теста: concurrency=2, 12 steps плюс финализация, 20 tools, 120 секунд/model call, 10 минут/run. Это проектные значения, не реализованный SLA. OCR — отдельный resumable job по hash страницы, не часть каждого вопроса.
 
-Если оболочка требует собственной автономной логики, ее не используем в основном контуре. research может сравнивать варианты; эксперимент не автоматически включается в продукт.
+## Результат и tools boundary
 
-## Граница адаптера runtime
+Публиковать валидированный JSON: summary, claims, позиция банка, риски/возможности, действия, citations и limitations. Разделять fact/bank_position/ai_inference. Верифицировать документ/цитату и права; не выдавать hidden chain-of-thought.
 
-Будущий backend-модуль `agent-runtime` предоставляет операции `start(runContext)`, `resume(checkpoint)`, `cancel(runId)`, `streamEvents(runId)`; это **наш интерфейс**, а не обещание существующего API OpenCode. Адаптер получает ограниченные tool capabilities и model gateway, не строку shell-команды. Выход — валидированный структурированный результат и checkpoints.
+Локальные типизированные tools сейчас достаточны; MCP не используется. При необходимости MCP — auth gateway с теми же scope и schemas, только нужные read-only инструменты. Никаких shell, произвольного SQL/URL, Docker socket или записи в банк.
 
-Если внешняя оболочка запускается как процесс, использовать фиксированный executable и аргументы через `spawn` без shell, отдельный непривилегированный контейнер, лимиты CPU/RAM/времени, минимальный read-only filesystem и private network. Не давать Docker socket, host mount или рабочие credentials API. Sandbox для каждого run/tenant; контекст одного клиента не переиспользуется у другого. URL harness не доступен браузеру.
+Документы и tool results — недоверенные данные, не системные инструкции. Политика доступа действует вне модели. Fetcher требует HTTPS allowlist, redirect checks, запрет private/link-local addresses, timeout и потоковый hard limit. Research проверяет host/redirect, но размер тела только после чтения: этого мало для production.
 
-## Нужен ли отдельный worker?
-
-**Да, для рабочего MVP с многошаговым анализом рекомендуется BullMQ + Redis и отдельный backend worker process.** Причины: секунды/минуты ожидания модели, отмена, retries, лимиты провайдера, восстановление после рестарта и независимая нагрузка на API. In-process background Promise допустим лишь для локального исследовательского эксперимента и не является надежной очередью. Текущий пустой шаблон очереди не требует.
-
-### Предлагаемый поток
-
-1. API проверяет auth, membership компании, роль, входы, idempotency key и доступный бюджет.
-2. В транзакции PostgreSQL создает `analysis_run` и запись outbox. В job передаются ID и версия, а не секреты или полный профиль.
-3. Outbox dispatcher отправляет в BullMQ job с детерминированным job ID; после подтверждения помечает outbox. Повтор доставки безопасен.
-4. Worker атомарно захватывает run/lease в SQL, загружает разрешенный snapshot контекста и запускает собственный runtime.
-5. Steps/checkpoints и последовательные события сохраняются в SQL. Инструменты и результат проверяются по JSON-схемам.
-6. API отдает persisted events по SSE; после reconnect читает их с `Last-Event-ID`. Redis Pub/Sub может будить API, но не заменяет хранение.
-7. Завершение записывает результат и terminal status в SQL. Ошибка не теряет предыдущие checkpoints.
-
-Состояния: `queued → running → completed | partial | failed | cancelled`; отмена активного run может пройти через `cancelling`. `partial` — терминальный результат с явными пробелами, не скрытая успешность.
-
-### Надежность и ресурсы
-
-- Доставка BullMQ предполагается at least once. Все действия идемпотентны по run/step/toolCall ID; перед повтором сверять SQL checkpoint. Истечение lease и stalled job могут вызвать дубль.
-- Retries только для transient timeout/429/5xx, с bounded exponential backoff/jitter и учетом `Retry-After`. Validation, access denied, budget exceeded не повторять автоматически.
-- До вызова модели резервировать оценку стоимости в общей атомарной квоте. После ответа сверять фактический расход; после неопределенного timeout не считать запрос бесплатным.
-- Стартовые параметры для проверки нагрузкой: до 2 параллельных runs, 12 агентных шагов, 20 tool calls, 120 секунд на модель, 10 минут на run, 2 повторных попытки transient-запроса. Это проектные значения, не обещание SLA и не настройки текущего шаблона.
-- Максимум 500 ₽/день на общий ключ по PDF; задавать запас, общий rate limiter между всеми worker, ограничивать output tokens. Тарифы и границу суток подтвердить у провайдера.
-- Отмена фиксируется в SQL; worker проверяет флаг на каждом шаге и посылает AbortSignal активным вызовам. Удаление job само по себе не отменяет LLM-запрос.
-- Graceful shutdown: перестать брать jobs, checkpoint/закончить ограниченный текущий шаг, освободить ресурсы. Redis с persistence и контролем памяти; конкретную eviction policy проверить под BullMQ, не использовать произвольную LRU.
-
-## Инструменты и MCP
-
-MCP — протокол вызова инструментов, а не обязательная отдельная подсистема. Начать с типизированных локальных функций и при необходимости экспортировать выбранные через MCP-адаптер:
-
-| Tool | Разрешенные входы и результат |
-| --- | --- |
-| `company.get_context` | server-scoped company ID, версия профиля, признаки и пробелы |
-| `company.get_links` | ограниченная глубина/объем, обезличенные связи, происхождение |
-| `news.search` | запрос/период/разрешенные источники; document IDs + цитаты |
-| `bank.search` | поиск только по предоставленному корпусу банка |
-| `document.read` | разрешенный document ID, ограниченный диапазон/объем |
-| `evidence.verify` | существование цитат, соответствие offsets и источников |
-
-Scope пользователя/компании задается сервером и не переопределяется аргументом модели. Для внешнего MCP проверять endpoint, auth, TLS, JSON-схемы, timeout, лимиты и аудит. Выдавать только необходимые read-only tools. Произвольные shell/HTTP/SQL, запись в банк, переводы и отправка сообщений не требуются этому продукту.
-
-## Prompt injection и данные
-
-Новость, PDF, найденная веб-страница и ответ инструмента — недоверенные данные, не системные инструкции. Извлекать факты с provenance, не выполнять встроенные команды. Tool policy применяется вне модели. Fetcher ограничивает hosts, redirect chains, размер, MIME и запрещает private/link-local destinations для защиты от SSRF. Идентификаторы и доступ проверяются повторно на каждом чтении и в worker.
-
-Trace содержит структурированные действия и краткие обоснования с evidence, без запроса/хранения приватных chain-of-thought. Секреты редактируются в логах. Разделение tenants, auth, encryption/retention и аудит должны быть реализованы до подключения реальных данных.
-
-## Разрешенные модели (с. 18 PDF)
-
-| Название в кейсе | Заявленная роль |
-| --- | --- |
-| Gemma 4 26B A4B | Классификация, извлечение, простые преобразования |
-| GLM-5.3-Flash | Сложный анализ и рассуждения |
-| Qwen3.6 35B A3B | Универсальная обработка и анализ текста |
-| DeepSeek-V4.1-Flash | Исследование взаимосвязей и больших объемов информации |
-| Qwen3-VL-30B-A3B-Instruct | Мультимодальные задачи |
-| Kimi-K2.6 | Текстовая аналитика |
-
-Это буквальные имена из PDF, не проверенные названия моделей в API. Endpoint, ключ, API IDs, совместимость и цены пока неизвестны. Не подменять их похожими публичными моделями и не отправлять данные произвольному провайдеру. Ключи задаются через окружение/секрет-хранилище, не через репозиторий или research.
+Публичный trace содержит действия, outcomes и источники без ключей, private paths и чувствительных raw args. Аудит research нельзя напрямую сериализовать браузеру. Конкретные адаптеры и пробелы — [08](08-research-integration.md).

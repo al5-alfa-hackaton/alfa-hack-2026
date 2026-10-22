@@ -1,80 +1,101 @@
-# Контракты API и интерфейса
+# API для frontend и исследовательского агента
 
-## Уже существующие технические маршруты
+**Контракт к реализации, не перечень уже работающих ручек.** Сейчас backend предоставляет только `GET /health` и `GET /ready`. Все пользовательские сценарии frontend моделируются в браузере. Research работает через CLI и не является HTTP-сервером.
 
-Fastify слушает `3001`. `GET /health` возвращает `{ "status": "ok", "service": "backend" }`. `GET /ready` возвращает `{ "status": "ok", "database": "not_configured" }` без DATABASE_URL; при заданном URL выполняет `select 1` через Drizzle и отвечает `database: "ok"`, либо HTTP 503 с `database: "unavailable"`. Это готовность каркаса, не реализованного предметного продукта. Неверная конфигурация останавливает запуск.
+Browser prefix — `/api/v1`; Fastify prefix — `/v1` (Nitro снимает `/api`). Далее пути указаны для Fastify. JSON — UTF-8, время ISO 8601 с timezone, суммы — decimal string + RUB/период. API не возвращает local filesystem paths, ключи, prompts или hidden reasoning.
 
-Frontend:3000 отображает один экран шаблона. Запрос `/api/health` проксируется Nitro в `/health` в dev и сборке; адрес backend задается при dev-запуске/сборке. Остальные маршруты ниже **не реализованы**.
+## Scope и права
 
-## Будущий REST API v1
+`userId`, membership и роль доступа определяет серверная сессия. `companyId` обязан входить в разрешенные компании, статус клиента — CLIENT. Аналитический `perspective=cfo|ceo` соответствует frontend `session.role` и влияет на ранжирование/ракурс, но **не предоставляет новые права**. Все чтения и worker-переходы повторно проверяют scope.
 
-| Метод / путь | Назначение |
-| --- | --- |
-| `GET /v1/me` | Текущий пользователь, роли, разрешенные компании |
-| `GET /v1/companies` | Доступные пользователю компании |
-| `GET /v1/companies/:id/context` | Признаки, provenance, неизвестные значения |
-| `GET /v1/companies/:id/insights` | Персональная лента, cursor pagination, фильтры |
-| `POST /v1/analysis-runs` | Новый анализ; Idempotency-Key; HTTP 202 с runId/statusUrl |
-| `GET /v1/analysis-runs/:id` | Статус, прогресс, результат/ошибка |
-| `GET /v1/analysis-runs/:id/events` | SSE c event ID и восстановлением после разрыва |
-| `POST /v1/analysis-runs/:id/cancel` | Запрос отмены, идемпотентная операция |
-| `GET /v1/insights/:id` | Полный результат с цитатами и признаками |
-| `GET /v1/documents/:id` | Разрешенный первоисточник/фрагмент |
-| `POST /v1/insights/:id/questions` | Уточняющий вопрос; новый связанный run, HTTP 202 |
-| `POST /v1/insights/:id/feedback` | Полезность/ошибка с привязкой к версии |
+Ключ пользовательского состояния: `(userId, companyId, perspective, insightId, insightVersion)`. Local storage demo не является механизмом авторизации. В live-режиме данные одного пользователя не должны оставаться в браузере другого после logout.
 
-Каждый endpoint проверяет company/user scope. Query role не дает новых прав. Cross-tenant ID не раскрывают наличие чужого ресурса. Входы валидируются Zod/JSON Schema, ошибки имеют форму `{ code, message, requestId, details? }` без stack/secrets. Нужны 400/401/403/404/409/429/503 с определенными контрактами; budget exhaustion отделяется от provider unavailable.
+## P0: ручки для существующего интерфейса
 
-Параметры запуска: `companyId`, `role`, `timeRange`, необязательный `eventId`/вопрос. Backend сам определяет scope, профиль и источники; не принимает произвольный prompt, executable, provider URL или shell command от браузера.
+| Экран / действие                      | Метод и путь                                                                          | Ответ и реализация                                                                                                  |
+| ------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Начальная загрузка, company switcher  | `GET /v1/me`                                                                          | User, разрешенные perspectives/capabilities, default company; без секретов                                          |
+| Поиск/выбор компании                  | `GET /v1/companies?query=&cursor=&limit=20`                                           | Только membership + CLIENT; безопасный displayName (при отсутствии названия — synthetic ID), отрасль, nextCursor    |
+| Контекст в sidebar, rail и `/company` | `GET /v1/companies/:companyId/context`                                                | Versioned profile, features, gaps, источники, group scale с основанием; адаптер `companyProfile`                    |
+| `/` и фильтры                         | `GET /v1/companies/:companyId/insights?perspective=cfo&kind=risk&q=&cursor=&limit=20` | Snapshot version, items, counts по kind до фильтра kind, matchedCount, nextCursor, freshness, limitations, dataMode |
+| Открыть разбор / deep link            | `GET /v1/insights/:insightId?perspective=cfo`                                         | Полный versioned Insight DTO, citations и собственные saved/feedback flags; повторная проверка company scope        |
+| Обновить сводку                       | `POST /v1/analysis-runs`                                                              | `202`, создание run/outbox в транзакции; Idempotency-Key; запуск worker отдельно                                    |
+| Прогресс / reconnect                  | `GET /v1/analysis-runs/:runId/events`                                                 | SSE сохраненных events с sequence и Last-Event-ID, без raw provider tokens                                          |
+| Fallback polling                      | `GET /v1/analysis-runs/:runId`                                                        | State, phase, progress, stopReason, result reference, error/retry/reset metadata                                    |
+| Отмена                                | `POST /v1/analysis-runs/:runId/cancel`                                                | `202 cancelling`, `200 cancelled` при повторе; `409 already_terminal`, если результат уже опубликован               |
+| `/history`                            | `GET /v1/companies/:companyId/analysis-runs?perspective=cfo&cursor=`                  | История scope с status, времени, duration, nullable usage/cost; не глобальный журнал                                |
+| `/saved`                              | `GET /v1/companies/:companyId/saved-insights?perspective=cfo&cursor=`                 | Сохраненные версии и доступность исходников                                                                         |
+| Сохранить                             | `PUT /v1/me/saved-insights/:insightId`                                                | Body perspective/version; идемпотентно `200` с savedAt                                                              |
+| Убрать закладку                       | `DELETE /v1/me/saved-insights/:insightId?perspective=cfo&version=`                    | Идемпотентно `204`                                                                                                  |
+| Полезность + замечание                | `PUT /v1/insights/:insightId/feedback`                                                | rating useful/not_useful/null, comment, perspective, version; сохранять оценку и текст раздельно                    |
+| Диалог по событию                     | `GET /v1/insights/:insightId/conversation?perspective=cfo&cursor=`                    | Разрешенные сообщения, conversation ID и version; без других компаний/ролей                                         |
+| Уточняющий вопрос                     | `POST /v1/insights/:insightId/questions`                                              | `202 runId, conversationId`; Idempotency-Key; тот же worker, insight/profile/corpus context                         |
+| Источники                             | `GET /v1/documents/:documentId?page=1&offset=0&length=2000`                           | Разрешенный фрагмент, date, title, sourceKind, contentExtent, locator, безопасный external URL; length <=4000       |
+| Сверка OCR PDF                        | `GET /v1/documents/:documentId/pages/:pageNumber/image`                               | Авторизованный PNG/stream; проверенные IDs, запрет обхода пути. Не принимать filename от клиента                    |
+| Ход анализа                           | `GET /v1/insights/:insightId/trace`                                                   | Public step summaries, tools/outcomes, document refs, versions; никаких secret args или private reasoning           |
 
-## Проект результата
+Маленький TXT-экспорт frontend уже формирует из отфильтрованных разрешенных данных; отдельная серверная ручка ему не нужна. Перед переключением на live запрещено экспортировать синтетические данные при ошибке API.
 
-```ts
-type Insight = {
-  id: string
-  schemaVersion: '1'
-  companyId: string
-  profileVersion: string
-  runId: string
-  generatedAt: string // ISO 8601 with timezone
-  status: 'complete' | 'partial' | 'insufficient_evidence'
-  event: { title: string; happenedAt?: string; factClaimIds: string[] }
-  relevance: { score: number; reasons: { featureId: string; explanation: string }[] }
-  claims: {
-    id: string
-    kind: 'fact' | 'bank_position' | 'ai_inference'
-    text: string
-    evidenceIds: string[]
-    companyFeatureIds: string[]
-    uncertainty?: string
-  }[]
-  risks: { claimIds: string[]; horizon?: string }[]
-  opportunities: { claimIds: string[]; horizon?: string }[]
-  possibleActions: { text: string; basedOnClaimIds: string[] }[]
-  evidence: {
-    id: string
-    documentId: string
-    sourceKind: 'news' | 'bank'
-    quote: string
-    locator: { page?: number; start?: number; end?: number }
-    publishedAt?: string
-  }[]
-  missingData: string[]
-  limitations: string[]
+## P1: развитие на основе research
+
+| Метод и путь                                                       | Для чего / адаптер                                                                                           |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `GET /v1/companies/:id/group?limit=20`                             | Участники и аффилированность: companyGroup; отдельная policy на видимость связанных компаний                 |
+| `GET /v1/companies/:id/counterparties?direction=both&limit=10`     | companyCounterparties; показывать coverage и industriesReliable, не только красивую диаграмму                |
+| `GET /v1/companies/:id/sources?q=&kind=news&since=&until=&cursor=` | Пользовательский просмотр разрешенного корпуса; адаптер newsSearch/bankSearch, не публичный LLM tool gateway |
+| `POST /v1/company-questions`                                       | Вопрос о компании без конкретного инсайта: отдельный runKind, те же scope/limits/worker                      |
+
+`evidence_verify` — серверный внутренний инструмент, публичная ручка для произвольных documentId/quotes не нужна. Ingestion, OCR и обновление каталогов — admin-only jobs/CLI; не кнопка любого клиента и не часть каждого вопроса.
+
+## Контракт создания run
+
+```json
+{
+  "companyId": "U_12345",
+  "perspective": "cfo",
+  "kind": "refresh_feed",
+  "timeRange": { "since": "2026-10-01T00:00:00Z", "until": "2026-10-22T00:00:00Z" }
 }
 ```
 
-Это проект контракта, не готовая TypeScript/DB-схема. В реализации нужны runtime constraints: relevance 0..1; `bank_position` ссылается только на bank evidence; каждый evidence ID существует; цитата принадлежит разрешенному документу; выводы без достаточной опоры маркируются и не публикуются как факт. Оценка релевантности не равна вероятности истинности.
+Сервер фиксирует profile/corpus/prompt versions, разрешенную модель, deadline и бюджет. В request нет model URL, системного prompt, shell, API key или userId. Для вопроса: `{ "question": "...", "perspective": "cfo", "insightVersion": "..." }`, 1..1000 символов после trim.
 
-SSE типы: `run.queued`, `step.started`, `step.completed`, `run.progress`, `run.completed`, `run.partial`, `run.failed`, `run.cancelled`; полезная нагрузка ограничена UI-прогрессом и публичными evidence summaries. Не передавать raw reasoning, токены провайдера или приватные tool payloads.
+```json
+{
+  "runId": "run_01",
+  "status": "queued",
+  "statusUrl": "/v1/analysis-runs/run_01",
+  "eventsUrl": "/v1/analysis-runs/run_01/events",
+  "dataMode": "research"
+}
+```
 
-## Будущие экраны
+Клиент строит browser URL с `/api`, не открывает внутренний Fastify hostname. В live используется тот же контракт с `dataMode=live`; браузерное demo имеет отдельный adapter, явно отмеченный в UI.
 
-- Входная точка сервиса и выбор компании/роли.
-- Контекст компании с источниками признаков и предупреждениями о пропусках.
-- Ранжированная лента; объяснение «почему для вас», период, отрасль/тематика.
-- Детальный инсайт: факт → связь с компанией → риски/возможности → возможные действия; отдельные области «Позиция банка» и «AI-интерпретация».
-- Источники с цитатами, временем и переходом к оригиналу; обратная связь.
-- Вопросы и уточнения в сохраненном контексте; статус анализа и отмена.
+## Insight DTO
 
-Для всех экранов предусмотреть loading, empty, partial, error, stale, budget exhausted и access denied; работа с клавиатуры, контраст, reduced motion, корректные aria labels. Полный набор shadcn/ui импортирован в исходники как строительные блоки, но не должен целиком грузиться в стартовый bundle: импортировать отдельные используемые компоненты.
+Обязательные поля: `id`, `version`, `schemaVersion`, `companyId`, `perspective`, `runId`, `generatedAt`, `dataMode`, `profileVersion`, `corpusVersion`, `status` (complete/partial/insufficient_evidence).
+
+Содержание:
+
+- `event`: id/title/happenedAt и fact claim IDs.
+- `relevance`: score 0..1, rank и reasons с feature IDs; это не probability of truth.
+- `summary`, `claims[]`: kind fact/bank_position/ai_inference, text, evidenceIds, companyFeatureIds, uncertainty.
+- `risks[]`, `opportunities[]`, `possibleActions[]`: текст + связанные claim IDs, horizon если известен.
+- `bankPosition`: available/missing/stale/conflicting, material dates и claim IDs. При отсутствии материала — явный missing, не заполнение моделью.
+- `evidence[]`: documentId, sourceKind, quote, publishedAt, locator(page/offset), verification outcome, contentExtent.
+- `missingData[]`, `limitations[]`, nullable usage/cost с валютой и certainty.
+
+Проверки публикации: references существуют и доступны; bank_position опирается на bank source; совпавшая цитата не доказывает логическую истинность всего вывода; неподтвержденный claim не публикуется как факт. structured-output validation и проверка citations выполняются вне модели.
+
+## SSE и согласованность
+
+Типы: run.queued, step.started, tool.completed, run.progress, run.completed, run.partial, run.failed, run.cancelled. Envelope: `{ id, runId, sequence, at, type, payload }`; событие и SQL-изменение согласованы транзакционно. Sequence уникален внутри run. Клиент дедуплицирует/replays, не добавляет два ответа при reconnect.
+
+После terminal event клиент перечитывает результат по ID. Потеря SSE — «связь прервана, восстанавливаем», а не мгновенная ошибка анализа. Heartbeat не выдается за прогресс. Проценты только при известном знаменателе; агентные steps показывать фазами. Старую сводку не уничтожать до атомарной публикации новой.
+
+## Ошибки и UI
+
+Форма: `{ "code": "budget_exhausted", "message": "...", "requestId": "...", "retryable": false, "resetAt": "..." }`. Details — безопасные поля, без stack/provider response. 400 validation, 401 session required, 403 forbidden scope, 404 unavailable resource, 409 idempotency/terminal conflict, 429 rate/budget, 503 transient dependency. Политика 403/404 для cross-tenant должна предотвращать перебор чужих ресурсов.
+
+Соответствие UI: queued/running → Progress + Cancel; partial → ограничения рядом с результатом; no events → Empty; unavailable → Alert + понятный retry; budget → resetAt без бесконечного автоповтора; denied → скрыть чужие данные; stale → дата и прежняя сводка; cancelled → история без публикации нового результата. Browser demo уже проверяет эти переходы, но не заменяет backend contract tests.
