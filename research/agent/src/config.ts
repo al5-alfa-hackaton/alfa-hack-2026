@@ -11,7 +11,7 @@ const schema = z.object({
   LLM_REASONING_EFFORT: z.enum(['none', 'low', 'medium', 'high']).default('none'),
   AGENT_MAX_STEPS: z.coerce.number().int().min(1).max(50).default(12),
   AGENT_MAX_TOOL_CALLS: z.coerce.number().int().min(1).max(100).default(20),
-  LLM_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(64).max(16000).default(2000),
+  LLM_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(64).max(16000).default(4000),
   LLM_TIMEOUT_MS: z.coerce.number().int().min(1000).default(120000),
 })
 

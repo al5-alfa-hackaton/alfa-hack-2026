@@ -35,6 +35,15 @@ export type BankOcr = { documentId: string; file: string; model: string; created
 const CHUNK_SIZE = 1200
 const CHUNK_OVERLAP = 200
 
+export function normalizePageText(text: string): string {
+  return text
+    .replace(/\r\n?/g, '\n')
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 export function chunkPage(text: string): { start: number; end: number }[] {
   const spans: { start: number; end: number }[] = []
   let start = 0
@@ -89,13 +98,13 @@ export async function extractBankCorpus(pdfDir: string, ocrDir: string): Promise
   for (const file of await listPdfs(pdfDir)) {
     const { pdf, sha256, id } = await openPdf(join(pdfDir, file))
     const { text } = await extractText(pdf, { mergePages: false })
-    let pages = text.map((p) => p.replace(/\s+/g, ' ').trim())
+    let pages = text.map(normalizePageText)
     let textSource: BankDocument['textSource'] = pages.some((p) => p.length > 0) ? 'pdf' : 'none'
 
     const ocrPath = join(ocrDir, `${id}.json`)
     if (textSource === 'none' && existsSync(ocrPath)) {
       const ocr = JSON.parse(await readFile(ocrPath, 'utf8')) as BankOcr
-      pages = ocr.pages.map((p) => p.replace(/\s+/g, ' ').trim())
+      pages = ocr.pages.map(normalizePageText)
       textSource = 'ocr'
     }
 

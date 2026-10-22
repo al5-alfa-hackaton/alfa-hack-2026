@@ -233,9 +233,10 @@ export function newsSearch(
   query: string,
   opts: { since?: string; until?: string; sourceIds?: string[]; limit?: number } = {},
 ) {
+  const until = opts.until && /^\d{4}-\d{2}-\d{2}$/.test(opts.until) ? `${opts.until}T23:59:59.999Z` : opts.until
   const filter = (n: DataContext['news'][number]) =>
     (!opts.since || (n.publishedAt ?? '') >= opts.since) &&
-    (!opts.until || (n.publishedAt ?? '') <= opts.until) &&
+    (!until || (n.publishedAt ?? '') <= until) &&
     (!opts.sourceIds?.length || opts.sourceIds.includes(n.sourceId))
   return {
     corpusSize: ctx.news.length,
