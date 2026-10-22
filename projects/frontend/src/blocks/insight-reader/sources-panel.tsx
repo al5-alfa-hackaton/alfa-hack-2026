@@ -1,7 +1,9 @@
-import { FileText, Link2 } from 'lucide-react'
-import { companies } from '@/entities/company'
-import { useWorkspace } from '@/entities/workspace'
-import type { News } from '@/entities/insight'
+import { useState } from 'react'
+import { ExternalLink, FileText } from 'lucide-react'
+import { useDocument, type Insight } from '@/entities/insight'
+import { errorMessage } from '@/shared/lib'
+import { RequestError, RequestSkeleton } from '@/components/request-state'
+import { Button } from '@/components/ui/button'
 import {
   Accordion,
   AccordionContent,
@@ -9,60 +11,115 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion'
 
-export function SourcesPanel({ item }: { item: News }) {
-  const { session } = useWorkspace()
-  const sources = [
-    {
-      id: 'news',
-      title: item.source,
-      label: 'Учебная новость · фрагмент 1 · 21.10.2026',
-      text: item.fact,
-    },
-    {
-      id: 'profile',
-      title: `Профиль «${companies[session.company].name}»`,
-      label: 'Синтетический профиль · версия 1',
-      text: item.context[session.company].reason,
-    },
-    ...(item.bank
-      ? [
-          {
-            id: 'bank',
-            title: 'Учебная аналитическая записка',
-            label: 'Смоделированный материал · не позиция банка',
-            text: item.bank,
-          },
-        ]
-      : []),
-  ]
+function DocumentFragment({ evidence }: { evidence: Insight['evidence'][number] }) {
+  const [offset, setOffset] = useState(0)
+  const [image, setImage] = useState(false)
+  const page = evidence.page ?? 1
+  const document = useDocument(evidence.documentId, page, offset)
+  const data = document.data
+  const external = data?.externalUrl?.startsWith('https://') ? data.externalUrl : null
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        {evidence.sourceKind === 'bank' ? 'Материал банка' : 'Новость'} ·{' '}
+        {evidence.contentExtent === 'lead' ? 'Доступен лид публикации' : 'Страница ' + page}
+        {evidence.publishedAt && ' · ' + new Date(evidence.publishedAt).toLocaleDateString('ru-RU')}
+      </p>
+      <blockquote className="border-l-2 pl-4 text-sm leading-7">{evidence.quote}</blockquote>
+      {document.isPending && <RequestSkeleton />}
+      {document.error && (
+        <RequestError
+          message={errorMessage(document.error)}
+          onRetry={() => void document.refetch()}
+        />
+      )}
+      {data && (
+        <>
+          <h4 className="text-sm font-medium">{data.title}</h4>
+          <p className="whitespace-pre-wrap text-sm leading-7 text-muted-foreground">
+            {data.text || 'Текст страницы недоступен.'}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {offset > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setOffset(Math.max(0, offset - 4000))}
+              >
+                Предыдущий фрагмент
+              </Button>
+            )}
+            {offset + data.text.length < data.totalLength && (
+              <Button variant="outline" size="sm" onClick={() => setOffset(offset + 4000)}>
+                Следующий фрагмент
+              </Button>
+            )}
+            {external && (
+              <Button variant="outline" size="sm" asChild>
+                <a href={external} target="_blank" rel="noopener noreferrer">
+                  Публикация
+                  <ExternalLink className="size-3.5" />
+                </a>
+              </Button>
+            )}
+            {evidence.sourceKind === 'bank' && (
+              <Button variant="outline" size="sm" onClick={() => setImage(!image)}>
+                {image ? 'Скрыть страницу' : 'Открыть страницу PDF'}
+              </Button>
+            )}
+          </div>
+          {image && (
+            <img
+              loading="lazy"
+              src={
+                '/api/v1/documents/' +
+                encodeURIComponent(evidence.documentId) +
+                '/pages/' +
+                page +
+                '/image'
+              }
+              alt={'Страница ' + page + ' — ' + data.title}
+              className="w-full rounded-md border"
+              onError={() => {
+                setImage(false)
+              }}
+            />
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+export function SourcesPanel({ item }: { item: Insight }) {
   return (
     <section>
       <p className="mb-4 text-sm leading-6 text-muted-foreground">
-        Встроенные учебные документы. Реальные публикации и материалы банка в демо не подключены.
+        Цитаты, прошедшие проверку по доступному тексту источника. Наличие цитаты само по себе не
+        подтверждает интерпретацию.
       </p>
-      <Accordion type="multiple" defaultValue={['news']}>
-        {sources.map((source, index) => (
-          <AccordionItem key={source.id} value={source.id}>
+      {!item.evidence.length && (
+        <p className="text-sm text-muted-foreground">
+          Подтверждённых источников для этого разбора нет.
+        </p>
+      )}
+      <Accordion type="multiple">
+        {item.evidence.map((evidence) => (
+          <AccordionItem key={evidence.id} value={evidence.id}>
             <AccordionTrigger className="gap-3 py-5 text-left text-sm">
               <span className="flex items-center gap-3">
                 <FileText className="size-4 shrink-0 text-muted-foreground" />
                 <span>
-                  <span className="mr-2 tabular-nums text-muted-foreground">[{index + 1}]</span>
-                  {source.title}
+                  [{evidence.id}]{' '}
+                  {evidence.sourceKind === 'bank' ? 'Материал банка' : 'Новостная публикация'}
                 </span>
               </span>
             </AccordionTrigger>
             <AccordionContent>
-              <p className="mb-4 text-xs text-muted-foreground">{source.label}</p>
-              <blockquote className="border-l-2 pl-4 text-sm leading-7">{source.text}</blockquote>
+              <DocumentFragment evidence={evidence} />
             </AccordionContent>
           </AccordionItem>
         ))}
       </Accordion>
-      <p className="mt-5 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
-        <Link2 className="mt-0.5 size-3.5 shrink-0" />В рабочем сервисе здесь появятся ссылки на
-        публикации и страницы PDF. Учебные документы доступны только как фрагменты выше.
-      </p>
     </section>
   )
 }
