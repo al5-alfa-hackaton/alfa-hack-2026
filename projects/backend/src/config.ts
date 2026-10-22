@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { fileURLToPath } from 'node:url'
 export const accountsSchema = z.array(
   z.object({
     id: z.string().min(1).max(100),
@@ -21,8 +22,8 @@ const schema = z.object({
     .default('alfa'),
   DEV_AUTH: bool.default(false),
   AUTH_USERS_JSON: z.string().default('[]'),
-  AGENT_PROVIDER: z.enum(['fixture', 'langgraph']).default('fixture'),
-  DATA_DIR: z.string().optional(),
+  AGENT_PROVIDER: z.enum(['disabled', 'fixture', 'langgraph']).default('disabled'),
+  DATA_DIR: z.string().default(fileURLToPath(new URL('../../../data', import.meta.url))),
   LLM_BASE_URL: z.url().optional(),
   LLM_API_KEY: z.string().optional(),
   LLM_MODEL_AGENT: z
@@ -47,7 +48,10 @@ const schema = z.object({
   AGENT_MAX_TOOL_CALLS: z.coerce.number().int().min(1).max(20).default(12),
 })
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
-  const config = schema.parse(Object.fromEntries(Object.entries(env).filter(([, v]) => v !== '')))
+  const config = schema.parse({
+    ...(env.NODE_ENV === 'test' ? { AGENT_PROVIDER: 'fixture' } : {}),
+    ...Object.fromEntries(Object.entries(env).filter(([, v]) => v !== '' && v !== undefined)),
+  })
   let accounts: z.infer<typeof accountsSchema>
   try {
     accounts = accountsSchema.parse(JSON.parse(config.AUTH_USERS_JSON))

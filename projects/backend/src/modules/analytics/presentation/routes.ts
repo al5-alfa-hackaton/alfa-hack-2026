@@ -46,6 +46,7 @@ export function createAnalyticsRoutes(
               id: z.string(),
               companyIds: z.array(z.string()),
               perspectives: z.array(s.perspective),
+              analysisAvailable: z.boolean(),
             }),
           },
         },
@@ -54,6 +55,7 @@ export function createAnalyticsRoutes(
         id: principalOf(req).id,
         companyIds: [...principalOf(req).companyIds],
         perspectives: ['cfo' as const, 'ceo' as const],
+        analysisAvailable: service.analysisAvailable,
       }),
     )
     api.post(
@@ -286,7 +288,9 @@ export function createAnalyticsRoutes(
         const p = principalOf(req)
         await service.feed(p, req.params.companyId, req.query.perspective)
         return page(
-          await service.store.savedInsights(p, req.params.companyId, req.query.perspective),
+          (
+            await service.store.savedInsights(p, req.params.companyId, req.query.perspective)
+          ).filter((i) => i.dataMode === service.dataMode),
           req.query.cursor,
           req.query.limit,
         )
