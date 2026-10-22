@@ -1,5 +1,7 @@
 # Research: аудит и план интеграции
 
+> Обновление backend: [реализованный контур и ограничения MVP](10-backend-implementation.md). Ниже сохранены исходный аудит и целевые требования; наличие пункта в roadmap не означает отсутствие его MVP-реализации.
+
 ## Что изучено
 
 `research/agent`: data loaders, CSV normalization, RSS/allowlist, bank catalog/OCR, BM25, семь tools, graph/prompts, sources resolver, gateway client и CLI. Исторические артефакты: [smoke 21.10](../research/agent/results/llm-smoke-2026-10-21.md), [OCR comparison](../research/agent/results/ocr-compare-2026-10-21/SUMMARY.md). Эти прогоны не повторялись: в текущем checkout нет полного data corpus; новые платные вызовы не выполнялись.

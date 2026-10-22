@@ -4,7 +4,7 @@
 
 [![Персональная сводка событий](docs/screenshots/feed-desktop.png)](docs/screenshots/feed-desktop.png)
 
-**Интерактивное демо:** две учебные компании, два аналитических ракурса, шесть событий. Frontend работает целиком в браузере. Исследовательский агент в `research/agent` запускается отдельно; его соединение с API и интерфейсом еще предстоит реализовать. Вымышленные показатели и тексты не являются данными клиента или позицией Альфа-Банка.
+**Интерактивное демо:** две учебные компании, два аналитических ракурса, шесть событий. Основное демо работает в браузере. На `/company → Данные сервиса` подключены Fastify API, PostgreSQL, BullMQ worker и типизированный клиент. Backend поддерживает собственный LangGraph-агент из `research/agent`; локальный fixture-режим не требует платного LLM. Вымышленные показатели и тексты не являются данными клиента или позицией Альфа-Банка.
 
 [Быстрый запуск](#запуск) · [Сценарий проверки](#что-попробовать) · [Архитектура](specs/07-frontend-architecture.md) · [Нужные API](specs/05-api-and-ui.md) · [Research](research/agent/README.md)
 
@@ -52,16 +52,20 @@ pnpm --filter @alfa/frontend dev
 
 Frontend слушает порт **3000**. Для демо не нужны backend, PostgreSQL, API key или исходные CSV. При отсутствии pnpm: `npm install --global pnpm@11.25.0`.
 
-Оба сервиса: `pnpm dev`. Для базы:
+Для сквозного сценария с API и worker:
 
 ```sh
+pnpm --filter @alfa/research-agent build
 pnpm infra:up
 # Только если файла еще нет; существующую конфигурацию не перезаписывать.
 cp projects/backend/.env.example projects/backend/.env
+pnpm db:migrate
 pnpm dev
+# В другом терминале:
+pnpm worker
 ```
 
-Backend — **3001**. Nitro проксирует `/api/*` в Fastify, снимая `/api`; `API_PROXY_TARGET` задается при dev-запуске или сборке frontend. Сейчас приложение не вызывает предметный API.
+Backend — **3001**. Nitro проксирует `/api/*` в Fastify, снимая `/api`; `API_PROXY_TARGET` задается при dev-запуске или сборке frontend. Откройте «Контекст компании → Данные сервиса»: U_1/U_3 — отдельные синтетические CSV-профили, сводка сохраняется в SQL. Swagger UI: http://localhost:3001/docs. [Устройство backend, auth и live-конфигурация](specs/10-backend-implementation.md).
 
 ## Что попробовать
 
@@ -86,7 +90,11 @@ projects/
     components/       shadcn/ui и generic-компоненты
     entities/         company, insight, analysis, workspace
     shared/           технические hooks/lib
-  backend/            Fastify, Drizzle, пустая предметная схема
+  backend/src/
+    modules/          companies, analytics: domain/application/infrastructure/presentation
+    composition/      сборка SQL, research, use cases
+    infrastructure/   Drizzle schema и PostgreSQL pool
+  api-client/         generated OpenAPI types и openapi-fetch client
 research/agent/       CSV/RSS/OCR, BM25, tools, собственный LangGraph-агент
 specs/                продукт, данные, API и план интеграции
 docs/screenshots/     снимки и инструкции воспроизведения
@@ -101,7 +109,7 @@ docs/screenshots/     снимки и инструкции воспроизве�
 ## Проверки
 
 ```sh
-pnpm typecheck                      # все пакеты + границы frontend
+pnpm typecheck                      # все пакеты + границы frontend/backend
 pnpm test                           # frontend, backend, research: офлайн
 pnpm build                          # frontend SSR и backend
 pnpm --filter @alfa/frontend test:e2e
@@ -136,18 +144,29 @@ curl --fail http://127.0.0.1:3000/api/health
 docker compose --profile apps up --build --wait
 ```
 
-`/health` — HTTP liveness. `/ready` с DATABASE_URL проверяет SQL и возвращает `database=ok` или 503; без URL сообщает `not_configured`. Это готовность scaffold, не предметного продукта.
+`/health` — HTTP liveness. `/ready` проверяет наличие мигрированных SQL-таблиц и доступность Redis, без них возвращает 503. Worker запускается отдельно и требует собственного мониторинга.
 
-Compose поднимает dev frontend/backend/PostgreSQL, порты 3000/3001 должны быть свободны. После изменения исходников нужен rebuild. `docker compose --profile apps down` сохраняет volume. `down -v` удаляет данные и не используется в обычном workflow.
+Compose поднимает dev frontend/API/worker, одноразовый migration job, PostgreSQL и Redis; порты 3000/3001 должны быть свободны. После изменения исходников нужен rebuild. `docker compose --profile apps down` сохраняет volume. `down -v` удаляет данные и не используется в обычном workflow.
 
 Dockerfile поддерживает необязательный BuildKit secret `extra_ca` для доверенного CA корпоративного TLS-прокси: локальный Compose override с build.secrets/secrets.file и при необходимости стандартные proxy build args. TLS-проверка остается включенной; сертификаты и конфигурация конкретной среды не попадают в Git.
 
-Backend `.env` читается из `projects/backend`. Переменные: HOST=0.0.0.0, PORT=3001, LOG_LEVEL=info, CORS_ORIGIN=http://localhost:3000, optional DATABASE_URL. Пример локальных credentials — только для разработки. `pnpm db:generate`, `pnpm db:migrate` требуют DATABASE_URL; предметных таблиц пока нет. Не сбрасывайте общую базу.
+Backend и worker читают `.env` из `projects/backend`. Все параметры — в [.env.example](projects/backend/.env.example). Локально используйте явные `DEV_AUTH=true`, `AGENT_PROVIDER=fixture`. В production они запрещены: нужны server-side bearer accounts, реальные данные и LLM gateway с подтвержденным пределом стоимости. `pnpm db:generate` создает миграцию, `pnpm db:migrate` применяет ее; общую базу не сбрасывать.
+
+Контракты: `pnpm contracts:generate`, затем `pnpm typecheck`; CI проверяет drift через `pnpm contracts:check`. Схемы запросов/ответов объявлены в Fastify, frontend импортирует generated operations из `@alfa/api-client`, без ручного дублирования DTO.
+
+Сквозные инфраструктурные проверки:
+
+```sh
+RUN_INTEGRATION=true TEST_DATABASE_URL=postgresql://alfa:alfa_local_only@127.0.0.1:5432/alfa pnpm test:integration
+TEST_BACKEND=true PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium pnpm --filter @alfa/frontend test:e2e
+```
+
+Integration создает отдельную временную БД и изолированную очередь, использует настоящий worker. Для browser-сценария API и worker должны работать с локальным fixture-конфигом.
 
 ## Research и следующие шаги
 
 [Исследовательский агент](research/agent/README.md) уже умеет читать профили/связи, искать новости и материалы банка, использовать OCR и собственный bounded LangGraph-цикл. Исторические отчеты: [модели](research/agent/results/llm-smoke-2026-10-21.md), [OCR](research/agent/results/ocr-compare-2026-10-21/SUMMARY.md). Исходные CSV, PDF банка, OCR тексты и run outputs хранятся вне Git.
 
-Frontend пока не вызывает этого агента. [Нужные API и DTO](specs/05-api-and-ui.md), [worker/очередь](specs/04-agent-runtime.md), [аудит и порядок переноса research](specs/08-research-integration.md) описывают следующий этап. Нужны auth/membership, import-safe agent core, durable runs, бюджет, structured output и проверка источников. Не запускайте готового автономного агента как основной компонент: PDF требует собственную агентную логику и только разрешенные модели.
+Backend импортирует graph/tools как библиотеку, ограничивает модели, валидирует output/citations и сохраняет lifecycle/events/insights. [Реализованный контур и ограничения](specs/10-backend-implementation.md), [API и DTO](specs/05-api-and-ui.md), [исходный аудит research](specs/08-research-integration.md). Следующие шаги: корпоративный SSO, реальные данные и live-проверка gateway, graph checkpoints, ранжирование и полное подключение демо-экранов к API. Не запускайте готового автономного агента как основной компонент: PDF требует собственную агентную логику и только разрешенные модели.
 
 [Все спецификации](specs/README.md) · [Исходный кейс](specs/source/brief.pdf) · [Сторонние компоненты и лицензии](THIRD_PARTY_NOTICES.md)
