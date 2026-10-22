@@ -1,41 +1,77 @@
+x-build: &app-build
+  image: alfa-hack-2026-app:dev
+  build: .
+
 services:
   frontend:
+    <<: *app-build
     profiles: [apps]
-    build: .
     command: [pnpm, --filter, '@alfa/frontend', dev]
     environment:
       API_PROXY_TARGET: http://backend:3001
-    ports:
-      - "127.0.0.1:3000:3000"
+    ports: ['127.0.0.1:3000:3000']
     depends_on:
-      backend:
-        condition: service_healthy
+      backend: { condition: service_healthy }
     healthcheck:
-      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
       interval: 5s
       timeout: 5s
       retries: 30
       start_period: 15s
 
   backend:
+    <<: *app-build
     profiles: [apps]
-    build: .
     command: [pnpm, --filter, '@alfa/backend', dev]
-    environment:
+    environment: &backend-env
       HOST: 0.0.0.0
       PORT: 3001
       CORS_ORIGIN: http://localhost:3000
       DATABASE_URL: postgresql://alfa:alfa_local_only@postgres:5432/alfa
-    ports:
-      - "127.0.0.1:3001:3001"
+      REDIS_URL: redis://redis:6379
+      DEV_AUTH: 'true'
+      AGENT_PROVIDER: fixture
+    ports: ['127.0.0.1:3001:3001']
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
     healthcheck:
-      test: [CMD, node, -e, "fetch('http://127.0.0.1:3001/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:3001/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
       interval: 5s
       timeout: 5s
       retries: 20
+
+  migrate:
+    <<: *app-build
+    profiles: [apps]
+    command: [pnpm, db:migrate]
+    environment:
+      DATABASE_URL: postgresql://alfa:alfa_local_only@postgres:5432/alfa
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  worker:
+    <<: *app-build
+    profiles: [apps]
+    command: [pnpm, --filter, '@alfa/backend', worker]
+    environment: *backend-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    stop_grace_period: 190s
 
   postgres:
     image: postgres:17.6-alpine
@@ -43,15 +79,25 @@ services:
       POSTGRES_USER: alfa
       POSTGRES_PASSWORD: alfa_local_only
       POSTGRES_DB: alfa
-    ports:
-      - "127.0.0.1:5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    ports: ['127.0.0.1:5432:5432']
+    volumes: [postgres_data:/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U alfa -d alfa"]
+      test: [CMD-SHELL, 'pg_isready -U alfa -d alfa']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    command: [redis-server, --appendonly, 'yes', --maxmemory-policy, noeviction]
+    ports: ['127.0.0.1:6379:6379']
+    volumes: [redis_data:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
       interval: 5s
       timeout: 3s
       retries: 20
 
 volumes:
   postgres_data:
+  redis_data:

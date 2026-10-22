@@ -12,7 +12,8 @@
     "agent:compare": "tsx --env-file-if-exists=.env src/cli/agent-compare.ts",
     "agent": "tsx --env-file-if-exists=.env src/cli/run-agent.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
     "@langchain/core": "1.2.13",
@@ -27,5 +28,11 @@
   "devDependencies": {
     "tsx": "4.23.15",
     "vitest": "5.0.5"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   }
 }
