@@ -5,7 +5,7 @@ import { AppError, type Principal } from '../../../shared/kernel/errors.js'
 import type { Documents } from '../application/documents.js'
 import type { PostgresStore } from './postgres-store.js'
 import { insights } from '../../../infrastructure/database/schema.js'
-import { inArray } from 'drizzle-orm'
+import { and, inArray, sql } from 'drizzle-orm'
 export class ResearchDocuments implements Documents {
   constructor(
     private readonly ctx: DataContext,
@@ -14,12 +14,17 @@ export class ResearchDocuments implements Documents {
   ) {}
   private async authorize(p: Principal, id: string) {
     if (!p.companyIds.length) throw new AppError('not_found', 'Документ недоступен')
-    const rows = await this.store.db
-      .select({ data: insights.data })
+    const [match] = await this.store.db
+      .select({ id: insights.id })
       .from(insights)
-      .where(inArray(insights.companyId, [...p.companyIds]))
-    if (!rows.some((r) => r.data.evidence.some((e) => e.documentId === id)))
-      throw new AppError('not_found', 'Документ недоступен')
+      .where(
+        and(
+          inArray(insights.companyId, [...p.companyIds]),
+          sql`${insights.data}->'evidence' @> ${JSON.stringify([{ documentId: id }])}::jsonb`,
+        ),
+      )
+      .limit(1)
+    if (!match) throw new AppError('not_found', 'Документ недоступен')
   }
   async read(p: Principal, id: string, page: number, offset: number, length: number) {
     await this.authorize(p, id)

@@ -281,15 +281,17 @@ export class PostgresStore implements AnalyticsStore {
             eq(t.messages.version, i.version),
           ),
         )
-        .orderBy(t.messages.at)
+        .orderBy(desc(t.messages.at), desc(t.messages.id))
         .limit(100)
-    ).map((r) => ({
-      id: r.id,
-      runId: r.runId,
-      author: r.author,
-      text: r.text,
-      at: r.at.toISOString(),
-    }))
+    )
+      .reverse()
+      .map((r) => ({
+        id: r.id,
+        runId: r.runId,
+        author: r.author,
+        text: r.text,
+        at: r.at.toISOString(),
+      }))
   }
   async trace(_p: Principal, i: Insight) {
     // These events contain only allowlisted public step metadata, never prompts/tool arguments.

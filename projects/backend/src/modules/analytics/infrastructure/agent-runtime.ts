@@ -254,7 +254,10 @@ export class LangGraphRuntime implements AgentRuntime {
       })
     signal.throwIfAborted()
     await progress('step.started', { phase: 'verifying_evidence' })
-    const featureIds = this.catalog.context(run.companyId).features.map((f) => f.id)
+    const featureIds = this.catalog
+      .context(run.companyId)
+      .features.filter((f) => f.value !== null)
+      .map((f) => f.id)
     // One final bounded request converts research prose and observed tool outputs into a strict draft.
     const structured = await model.invoke(
       [
@@ -301,6 +304,7 @@ export class LangGraphRuntime implements AgentRuntime {
       if (
         facts.length &&
         positions.length &&
+        i.claims.some((c) => c.kind === 'ai_inference' && c.companyFeatureIds.length > 0) &&
         i.bankPosition.status === 'available' &&
         result.stopReason === 'answered' &&
         !verified.limitations.length
