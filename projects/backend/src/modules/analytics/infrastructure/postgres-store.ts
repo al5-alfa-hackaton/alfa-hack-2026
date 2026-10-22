@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { and, eq, desc, gt, inArray, isNull, lt, sql } from 'drizzle-orm'
+import { and, eq, desc, gt, inArray, isNull, isNotNull, lt, sql } from 'drizzle-orm'
 import type { Database } from '../../../infrastructure/database/client.js'
 import * as t from '../../../infrastructure/database/schema.js'
 import { AppError, requireCompany, type Principal } from '../../../shared/kernel/errors.js'
@@ -48,7 +48,10 @@ async function settle(tx: Tx, row: typeof t.runs.$inferSelect, charged: boolean)
     .where(eq(t.budgets.day, row.budgetDay))
 }
 export class PostgresStore implements AnalyticsStore {
-  constructor(readonly db: Database) {}
+  constructor(
+    readonly db: Database,
+    private readonly maxRecoveries = 2,
+  ) {}
   async createRun(
     p: Principal,
     input: RunInput,
@@ -162,7 +165,7 @@ export class PostgresStore implements AnalyticsStore {
       if (terminal(row.status)) throw new AppError('already_terminal', 'Запуск уже завершён')
       const status = row.status === 'queued' ? 'cancelled' : 'cancelling'
       await tx.update(t.runs).set({ status }).where(eq(t.runs.id, id))
-      if (status === 'cancelled') await settle(tx, row, false)
+      if (status === 'cancelled') await settle(tx, row, row.attempt > 0)
       await event(tx, id, status === 'cancelled' ? 'run.cancelled' : 'run.progress', {
         phase: status,
       })
@@ -300,40 +303,100 @@ export class PostgresStore implements AnalyticsStore {
   async pending() {
     return this.db.select().from(t.outbox).where(isNull(t.outbox.publishedAt)).limit(100)
   }
-  async dispatched(id: string) {
-    await this.db.update(t.outbox).set({ publishedAt: new Date() }).where(eq(t.outbox.runId, id))
+  async deliveriesToReconcile() {
+    return this.db
+      .select({ runId: t.outbox.runId, version: t.outbox.version })
+      .from(t.outbox)
+      .innerJoin(t.runs, eq(t.runs.id, t.outbox.runId))
+      .where(
+        and(
+          eq(t.runs.status, 'queued'),
+          isNotNull(t.outbox.publishedAt),
+          lt(t.outbox.publishedAt, new Date(Date.now() - 5000)),
+        ),
+      )
+      .limit(100)
   }
-  async claim(id: string) {
+  async rearmDelivery(id: string, version: number) {
+    await this.db
+      .update(t.outbox)
+      .set({ publishedAt: null })
+      .where(
+        and(
+          eq(t.outbox.runId, id),
+          eq(t.outbox.version, version),
+          sql`exists(select 1 from analysis_runs where id=${id} and status='queued')`,
+        ),
+      )
+  }
+  async dispatched(id: string, version = 0) {
+    await this.db
+      .update(t.outbox)
+      .set({ publishedAt: new Date() })
+      .where(and(eq(t.outbox.runId, id), eq(t.outbox.version, version)))
+  }
+  async claim(id: string, version = 0) {
     return this.db.transaction(async (tx) => {
       const [row] = await tx
         .update(t.runs)
-        .set({ status: 'running', leaseUntil: new Date(Date.now() + 45000) })
-        .where(and(eq(t.runs.id, id), eq(t.runs.status, 'queued')))
+        .set({
+          status: 'running',
+          leaseToken: randomUUID(),
+          attempt: sql`${t.runs.attempt}+1`,
+          leaseUntil: new Date(Date.now() + 45000),
+        })
+        .where(
+          and(
+            eq(t.runs.id, id),
+            eq(t.runs.status, 'queued'),
+            sql`exists(select 1 from run_outbox where run_id=${id} and version=${version})`,
+          ),
+        )
         .returning()
       if (!row) return null
       await event(tx, id, 'step.started', { phase: 'collecting_context' })
-      return mapRun(row)
+      return { ...mapRun(row), leaseToken: row.leaseToken!, attempt: row.attempt }
     })
   }
-  async heartbeat(id: string) {
+  async heartbeat(id: string, token: string) {
     const [row] = await this.db
       .update(t.runs)
       .set({ leaseUntil: new Date(Date.now() + 45000) })
-      .where(and(eq(t.runs.id, id), inArray(t.runs.status, ['running', 'cancelling'])))
+      .where(
+        and(
+          eq(t.runs.id, id),
+          eq(t.runs.leaseToken, token),
+          gt(t.runs.leaseUntil, new Date()),
+          inArray(t.runs.status, ['running', 'cancelling']),
+        ),
+      )
       .returning({ status: t.runs.status })
     return row?.status
   }
-  async progress(id: string, type: string, payload: Record<string, unknown>) {
+  async progress(id: string, type: string, payload: Record<string, unknown>, token: string) {
     await this.db.transaction(async (tx) => {
       const [row] = await tx.select().from(t.runs).where(eq(t.runs.id, id)).for('update')
-      if (row?.status === 'running') await event(tx, id, type, payload)
+      if (
+        row?.status === 'running' &&
+        row.leaseToken === token &&
+        row.leaseUntil &&
+        row.leaseUntil.getTime() > Date.now()
+      )
+        await event(tx, id, type, payload)
     })
   }
-  async finish(id: string, result?: AgentResult, error?: string, expiredOnly = false) {
+  async finish(id: string, result?: AgentResult, error?: string, token?: string) {
     await this.db.transaction(async (tx) => {
       const [row] = await tx.select().from(t.runs).where(eq(t.runs.id, id)).for('update')
-      if (!row || terminal(row.status)) return
-      if (expiredOnly && (!row.leaseUntil || row.leaseUntil.getTime() >= Date.now())) return
+      if (
+        !row ||
+        terminal(row.status) ||
+        !token ||
+        row.leaseToken !== token ||
+        !row.leaseUntil ||
+        row.leaseUntil.getTime() <= Date.now()
+      )
+        return
       const cancelled = row.status === 'cancelling'
       const status = cancelled
         ? 'cancelled'
@@ -379,7 +442,7 @@ export class PostgresStore implements AnalyticsStore {
       }
       await tx
         .update(t.runs)
-        .set({ status, resultIds: ids, error: error ?? null, leaseUntil: null })
+        .set({ status, resultIds: ids, error: error ?? null, leaseUntil: null, leaseToken: null })
         .where(eq(t.runs.id, id))
       await settle(tx, row, true) // Unknown gateway cost consumes the entire conservative reservation.
       await event(tx, id, `run.${status}`, { resultIds: ids, ...(error ? { code: error } : {}) })
@@ -392,6 +455,55 @@ export class PostgresStore implements AnalyticsStore {
       .where(
         and(inArray(t.runs.status, ['running', 'cancelling']), lt(t.runs.leaseUntil, new Date())),
       )
-    for (const row of rows) await this.finish(row.id, undefined, 'worker_lost', true)
+      .limit(100)
+    for (const { id } of rows)
+      await this.db.transaction(async (tx) => {
+        const [row] = await tx.select().from(t.runs).where(eq(t.runs.id, id)).for('update')
+        if (
+          !row ||
+          !['running', 'cancelling'].includes(row.status) ||
+          !row.leaseUntil ||
+          row.leaseUntil.getTime() >= Date.now()
+        )
+          return
+        const [uncertain] = await tx
+          .select({ key: t.modelCalls.callKey })
+          .from(t.modelCalls)
+          .where(and(eq(t.modelCalls.runId, id), isNull(t.modelCalls.response)))
+          .limit(1)
+        const code = uncertain
+          ? 'model_call_uncertain'
+          : row.attempt === 0
+            ? 'legacy_run_without_checkpoint'
+            : row.attempt > this.maxRecoveries
+              ? 'recovery_limit'
+              : row.budgetDay !== new Date().toISOString().slice(0, 10)
+                ? 'budget_window_expired'
+                : null
+        if (row.status === 'cancelling' || code) {
+          const status = row.status === 'cancelling' ? 'cancelled' : 'failed'
+          await tx
+            .update(t.runs)
+            .set({
+              status,
+              error: status === 'failed' ? code : null,
+              leaseToken: null,
+              leaseUntil: null,
+            })
+            .where(eq(t.runs.id, id))
+          await settle(tx, row, true)
+          await event(tx, id, `run.${status}`, { ...(code ? { code } : {}) })
+        } else {
+          await tx
+            .update(t.runs)
+            .set({ status: 'queued', leaseToken: null, leaseUntil: null })
+            .where(eq(t.runs.id, id))
+          await tx
+            .update(t.outbox)
+            .set({ version: sql`${t.outbox.version}+1`, publishedAt: null })
+            .where(eq(t.outbox.runId, id))
+          await event(tx, id, 'run.resuming', { attempt: row.attempt + 1 })
+        }
+      })
   }
 }

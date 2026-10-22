@@ -10,6 +10,7 @@ import {
   FixtureRuntime,
   LangGraphRuntime,
 } from '../modules/analytics/infrastructure/agent-runtime.js'
+import { CheckpointRuntime } from '../modules/analytics/infrastructure/checkpoint-runtime.js'
 import { AppError } from '../shared/kernel/errors.js'
 export async function compose(config: Config) {
   const data = await createData(config),
@@ -25,7 +26,7 @@ export async function compose(config: Config) {
       }
     },
   })
-  const store = database ? new PostgresStore(database.db) : unavailable
+  const store = database ? new PostgresStore(database.db, config.RUN_MAX_RECOVERIES) : unavailable
   const companies = new Companies(catalog)
   const analytics = new Analytics(store, companies, {
     reservation: config.AGENT_PROVIDER === 'fixture' ? 0 : config.RUN_RESERVATION_RUB,
@@ -36,7 +37,13 @@ export async function compose(config: Config) {
   const agent =
     config.AGENT_PROVIDER === 'fixture'
       ? new FixtureRuntime(catalog, data)
-      : new LangGraphRuntime(config, catalog, data, store)
+      : new LangGraphRuntime(
+          config,
+          catalog,
+          data,
+          store,
+          database ? new CheckpointRuntime(database.pool, config.AGENT_MAX_STEPS + 2) : undefined,
+        )
   return { database, catalog, companies, analytics, documents, store, agent }
 }
 export type Runtime = Awaited<ReturnType<typeof compose>>

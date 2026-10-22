@@ -8,6 +8,13 @@
       "when": 1792672256061,
       "tag": "0000_nifty_ravenous",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792674733836,
+      "tag": "0001_agent_checkpoints_and_recovery",
+      "breakpoints": true
     }
   ]
 }

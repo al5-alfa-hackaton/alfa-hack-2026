@@ -131,7 +131,9 @@ export async function buildApp(config: Config = loadConfig(), deps?: Runtime) {
     if (!runtime.database)
       return reply.code(503).send({ status: 'unavailable', database: 'not_configured' })
     try {
-      await runtime.database.db.execute(sql`select 1 from analysis_runs limit 0`)
+      await runtime.database.db.execute(
+        sql`select 1 from analysis_runs, agent_model_calls, agent_checkpoints.checkpoints limit 0`,
+      )
       if (!redis) {
         redis = new Redis(config.REDIS_URL, {
           lazyConnect: true,
