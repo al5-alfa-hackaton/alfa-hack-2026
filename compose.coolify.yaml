@@ -1,0 +1,135 @@
+# Production stack for Coolify. In the resource settings set
+# "Docker Compose Location" to /compose.coolify.yaml (local dev uses compose.yaml).
+#
+# Data: the dataset is not in Git. Put data/raw and data/processed on the server
+# (see README, "Данные и OCR") at DATA_HOST_DIR (default /data/alfa-hack) before the first deploy.
+
+x-build: &app-build
+  build:
+    context: .
+    target: prod
+
+x-backend-env: &backend-env
+  NODE_ENV: production
+  HOST: 0.0.0.0
+  PORT: 3001
+  CORS_ORIGIN: ${SERVICE_URL_FRONTEND}
+  DATABASE_URL: postgresql://alfa:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/alfa
+  REDIS_URL: redis://redis:6379
+  DATA_DIR: /app/data
+  AUTH_SESSION_SECRET: ${SERVICE_PASSWORD_64_SESSION}
+  AGENT_PROVIDER: ${AGENT_PROVIDER:-disabled}
+  ALLOW_DATASET_LOGIN: ${ALLOW_DATASET_LOGIN:-}
+  LLM_BASE_URL: ${LLM_BASE_URL:-}
+  LLM_API_KEY: ${LLM_API_KEY:-}
+  LLM_MODEL_AGENT: ${LLM_MODEL_AGENT:-deepseek/deepseek-v4.1-flash}
+  LLM_GATEWAY_REQUEST_CAP_RUB: ${LLM_GATEWAY_REQUEST_CAP_RUB:-}
+  DAILY_BUDGET_RUB: ${DAILY_BUDGET_RUB:-500}
+  RUN_RESERVATION_RUB: ${RUN_RESERVATION_RUB:-25}
+  AGENT_MAX_STEPS: ${AGENT_MAX_STEPS:-6}
+  LLM_MAX_OUTPUT_TOKENS: ${LLM_MAX_OUTPUT_TOKENS:-10000}
+
+x-data-volume: &data-volume ${DATA_HOST_DIR:-/data/alfa-hack}:/app/data:ro
+
+services:
+  frontend:
+    <<: *app-build
+    command: [pnpm, --filter, '@alfa/frontend', start]
+    environment:
+      - SERVICE_FQDN_FRONTEND_3000
+      - NODE_ENV=production
+      - HOST=0.0.0.0
+      - PORT=3000
+    depends_on:
+      backend: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  backend:
+    <<: *app-build
+    command: [pnpm, --filter, '@alfa/backend', start]
+    volumes: [*data-volume]
+    environment: *backend-env
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+      seed: { condition: service_completed_successfully }
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:3001/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  migrate:
+    <<: *app-build
+    restart: 'no'
+    command: [pnpm, db:migrate]
+    environment:
+      DATABASE_URL: postgresql://alfa:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/alfa
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  seed:
+    <<: *app-build
+    restart: 'no'
+    command: [pnpm, db:seed]
+    volumes: [*data-volume]
+    environment: *backend-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  worker:
+    <<: *app-build
+    command: [pnpm, --filter, '@alfa/backend', worker:start]
+    volumes: [*data-volume]
+    environment: *backend-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      seed: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    stop_grace_period: 190s
+
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_USER: alfa
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}
+      POSTGRES_DB: alfa
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U alfa -d alfa']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    command: [redis-server, --appendonly, 'yes', --maxmemory-policy, noeviction]
+    volumes: [redis_data:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  postgres_data:
+  redis_data:
