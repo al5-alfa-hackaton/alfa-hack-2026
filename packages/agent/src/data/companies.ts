@@ -1,6 +1,7 @@
 import { emptyToNull, parseFlag, parseNumber, readCsv } from './csv.js'
 
 export type Company = {
+  profileSource?: 'user'
   id: string
   groupId: string | null
   ownership: string | null

@@ -30,3 +30,5 @@ export {
   ML_RANKING_VERSION,
   type RankedNewsItem,
 } from './news/ranking.js'
+
+export type { Company } from './data/companies.js'

@@ -15,6 +15,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/registrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["registerUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/companies": {
         parameters: {
             query?: never;
@@ -326,6 +342,9 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    username: string;
+                    password: string;
+                } | {
                     token: string;
                 };
             };
@@ -474,6 +493,188 @@ export interface operations {
                 };
                 content: {
                     "application/json": null;
+                };
+            };
+            /** @description Default Response */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        retryable: boolean;
+                        /** Format: date-time */
+                        resetAt?: string;
+                    };
+                };
+            };
+            /** @description Default Response */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        retryable: boolean;
+                        /** Format: date-time */
+                        resetAt?: string;
+                    };
+                };
+            };
+            /** @description Default Response */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        retryable: boolean;
+                        /** Format: date-time */
+                        resetAt?: string;
+                    };
+                };
+            };
+            /** @description Default Response */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        retryable: boolean;
+                        /** Format: date-time */
+                        resetAt?: string;
+                    };
+                };
+            };
+            /** @description Default Response */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        retryable: boolean;
+                        /** Format: date-time */
+                        resetAt?: string;
+                    };
+                };
+            };
+            /** @description Default Response */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        retryable: boolean;
+                        /** Format: date-time */
+                        resetAt?: string;
+                    };
+                };
+            };
+            /** @description Default Response */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        retryable: boolean;
+                        /** Format: date-time */
+                        resetAt?: string;
+                    };
+                };
+            };
+        };
+    };
+    registerUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    username: string;
+                    password: string;
+                    company: {
+                        name: string;
+                        industry: string;
+                        region: string;
+                        /** @default null */
+                        revenue?: number | null;
+                        /** @default null */
+                        employees?: number | null;
+                        /**
+                         * @default {
+                         *       "loans": null,
+                         *       "leasing": null,
+                         *       "deposits": null,
+                         *       "payroll": null,
+                         *       "factoring": null,
+                         *       "settlement": null,
+                         *       "guarantees": null
+                         *     }
+                         */
+                        products?: {
+                            /** @default null */
+                            loans?: boolean | null;
+                            /** @default null */
+                            leasing?: boolean | null;
+                            /** @default null */
+                            deposits?: boolean | null;
+                            /** @default null */
+                            payroll?: boolean | null;
+                            /** @default null */
+                            factoring?: boolean | null;
+                            /** @default null */
+                            settlement?: boolean | null;
+                            /** @default null */
+                            guarantees?: boolean | null;
+                        };
+                        /** @default [] */
+                        customsCountries?: string[];
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        /** Format: date-time */
+                        expiresAt: string;
+                        companyId: string;
+                    };
                 };
             };
             /** @description Default Response */
@@ -759,6 +960,8 @@ export interface operations {
                             region: string | null;
                         };
                         profileVersion: string;
+                        /** @enum {string} */
+                        profileSource?: "dataset" | "user";
                         corpusVersion: string;
                         /** @enum {string} */
                         dataMode: "fixture" | "research";

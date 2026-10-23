@@ -10,7 +10,7 @@ import {
   type DataContext,
   type ToolCallRecord,
   PROMPT_VERSION,
-} from '@alfa/research-agent'
+} from '@alfa/agent'
 import { MemorySaver } from '@langchain/langgraph-checkpoint'
 import { rankNews, RANKING_VERSION, type RankedNews } from '../domain/ranking.js'
 import { parseDraftBatch, type DraftClaim, type EventDraft } from './agent-draft.js'

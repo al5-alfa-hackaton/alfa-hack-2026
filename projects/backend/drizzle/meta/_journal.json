@@ -15,6 +15,13 @@
       "when": 1792674733836,
       "tag": "0001_agent_checkpoints_and_recovery",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792715084019,
+      "tag": "0002_thick_logan",
+      "breakpoints": true
     }
   ]
 }

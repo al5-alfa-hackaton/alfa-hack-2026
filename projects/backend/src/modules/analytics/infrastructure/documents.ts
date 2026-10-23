@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import type { DataContext } from '@alfa/research-agent'
+import type { DataContext } from '@alfa/agent'
 import { AppError, type Principal } from '../../../shared/kernel/errors.js'
 import type { Documents } from '../application/documents.js'
 import type { PostgresStore } from './postgres-store.js'

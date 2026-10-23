@@ -1,10 +1,10 @@
 # Подключение ML-части к бэкенду и фронту
 
-Что добавлено в `research/agent` и что нужно реализовать в `projects/backend` и `projects/frontend`, чтобы это заработало на сайте.
+Что добавлено в `packages/agent` и что нужно реализовать в `projects/backend` и `projects/frontend`, чтобы это заработало на сайте.
 
 ## Что добавлено в ML-часть
 
-| Возможность | Артефакт (экспорт `@alfa/research-agent`) | Файл |
+| Возможность | Артефакт (экспорт `@alfa/agent`) | Файл |
 | --- | --- | --- |
 | Разбор ответа агента в JSON карточки без второго вызова модели | `createFeedFinalizer`, `parseFeedAnswer`, `toStructuredDraft` | `src/agent/feed-parser.ts` |
 | Поля карточки из ответа агента: тип, главное, риски, возможности, шаги, ответ на вопрос | `ParsedEvent`: `kind`, `summary`, `risks`, `opportunities`, `actions`, `answer`, `clarification` | там же |
@@ -184,10 +184,10 @@ answer: drafts.find((d) => d.answer)?.answer || insights.map((i) => i.summary).j
 
 ```sh
 git pull && pnpm install
-pnpm --filter @alfa/research-agent build          # бэкенд берет агента из dist
+pnpm --filter @alfa/agent build          # бэкенд берет агента из dist
 unzip bank-ocr.zip                                # распознанные PDF банка (Qwen3.6, сверено вручную), архив передается отдельно
-pnpm --filter @alfa/research-agent ingest --bank
-pnpm --filter @alfa/research-agent news:tag       # после каждого ingest --news; размечаются только новые новости
+pnpm --filter @alfa/agent ingest --bank
+pnpm --filter @alfa/agent news:tag       # после каждого ingest --news; размечаются только новые новости
 ```
 
 - В `.env` бэкенда не задавать `LLM_MAX_OUTPUT_TOKENS=2000` (значение по умолчанию 4000; при 2000 JSON обрезался).

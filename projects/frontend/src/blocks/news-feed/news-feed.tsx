@@ -229,6 +229,9 @@ export function FeedContext() {
               </p>
             ))}
           </section>
+          {data.profileSource === 'user' && (
+            <p className="text-xs text-muted-foreground">Профиль заполнен пользователем.</p>
+          )}
           {data.dataMode === 'fixture' && (
             <p className="text-xs text-muted-foreground">Подключён тестовый набор данных.</p>
           )}

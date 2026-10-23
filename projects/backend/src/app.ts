@@ -1,7 +1,7 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import cookie from '@fastify/cookie'
-import { createHash } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
 import swagger from '@fastify/swagger'
@@ -28,7 +28,14 @@ export async function buildApp(config: Config = loadConfig(), deps?: Runtime) {
     requestTimeout: 30000,
     logger: {
       level: config.LOG_LEVEL,
-      redact: ['req.headers.authorization', 'req.headers.cookie', '*.token', '*.apiKey'],
+      redact: [
+        'req.headers.authorization',
+        'req.headers.cookie',
+        '*.token',
+        '*.apiKey',
+        '*.password',
+        '*.passwordHash',
+      ],
     },
   })
   app.setValidatorCompiler(validatorCompiler)
@@ -46,7 +53,7 @@ export async function buildApp(config: Config = loadConfig(), deps?: Runtime) {
   })
   app.register(helmet)
   app.register(cookie, {
-    secret: createHash('sha256').update(JSON.stringify(config.accounts)).digest('hex'),
+    secret: config.AUTH_SESSION_SECRET ?? randomBytes(32).toString('hex'),
   })
   app.register(rateLimit, {
     max: 600,
@@ -86,7 +93,7 @@ export async function buildApp(config: Config = loadConfig(), deps?: Runtime) {
         },
       }
   })
-  registerAuth(app, config)
+  registerAuth(app, config, runtime)
   app.addHook('onSend', async (req, reply, payload) => {
     if (req.url.startsWith('/v1/')) reply.header('Cache-Control', 'private, no-store')
     return payload
@@ -98,6 +105,7 @@ export async function buildApp(config: Config = loadConfig(), deps?: Runtime) {
       invalid_request: 400,
       idempotency_conflict: 409,
       version_conflict: 409,
+      username_taken: 409,
       already_terminal: 409,
       budget_exhausted: 429,
       unavailable: 503,
@@ -151,7 +159,7 @@ export async function buildApp(config: Config = loadConfig(), deps?: Runtime) {
       return reply.code(503).send({ status: 'unavailable', database: 'not_configured' })
     try {
       await runtime.database.db.execute(
-        sql`select 1 from analysis_runs, agent_model_calls, agent_checkpoints.checkpoints limit 0`,
+        sql`select 1 from analysis_runs, agent_model_calls, agent_checkpoints.checkpoints, users, company_memberships, custom_companies limit 0`,
       )
       if (!redis) {
         redis = new Redis(config.REDIS_URL, {

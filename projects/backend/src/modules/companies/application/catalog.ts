@@ -8,6 +8,7 @@ export type CompanySummary = {
 export type CompanyContext = {
   company: CompanySummary
   profileVersion: string
+  profileSource?: 'dataset' | 'user'
   corpusVersion: string
   dataMode: 'fixture' | 'research'
   features: { id: string; label: string; value: string | null }[]

@@ -11,15 +11,16 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY projects/frontend/package.json ./projects/frontend/package.json
 COPY projects/backend/package.json ./projects/backend/package.json
-COPY projects/api-client/package.json ./projects/api-client/package.json
-COPY research/agent/package.json ./research/agent/package.json
+COPY packages/api-client/package.json ./packages/api-client/package.json
+COPY packages/agent/package.json ./packages/agent/package.json
 RUN --mount=type=secret,id=extra_ca \
     if [ -f /run/secrets/extra_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/extra_ca; fi; \
     pnpm install --frozen-lockfile
 
 COPY tsconfig.base.json ./
 COPY projects ./projects
-COPY research/agent ./research/agent
-RUN pnpm --filter @alfa/research-agent build
+COPY packages ./packages
+COPY docs/dataset-accounts.md ./docs/dataset-accounts.md
+RUN pnpm --filter @alfa/agent build
 
 CMD ["pnpm", "dev"]
