@@ -98,7 +98,16 @@ services:
 
   worker:
     <<: *app-build
-    command: [pnpm, --filter, '@alfa/backend', worker:start]
+    # The worker refuses to start without a provider; idle instead of crash-looping.
+    command:
+      - sh
+      - -c
+      - |
+        if [ "$$AGENT_PROVIDER" = "langgraph" ]; then
+          exec pnpm --filter @alfa/backend worker:start
+        fi
+        echo "worker idle: AGENT_PROVIDER=$$AGENT_PROVIDER (set langgraph to enable analysis)"
+        exec sleep infinity
     volumes: [*data-volume]
     environment: *backend-env
     depends_on:
