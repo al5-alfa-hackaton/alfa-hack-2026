@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import { loadDataContext, loadCompanyStore, buildDataContext } from '@alfa/research-agent'
+import { loadDataContext, loadCompanyStore, buildDataContext } from '@alfa/agent'
 import type { Config } from '../config.js'
 export async function createData(config: Config) {
   if (config.AGENT_PROVIDER !== 'fixture') return loadDataContext({ DATA_DIR: config.DATA_DIR })

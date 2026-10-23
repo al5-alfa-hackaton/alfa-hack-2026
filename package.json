@@ -17,10 +17,11 @@
     "infra:up": "docker compose up -d postgres redis",
     "infra:down": "docker compose down",
     "ui:add": "pnpm --filter @alfa/frontend exec shadcn add",
-    "contracts:generate": "pnpm --filter @alfa/research-agent build && pnpm --filter @alfa/backend contracts:generate",
-    "contracts:check": "pnpm contracts:generate && git diff --exit-code -- projects/api-client/openapi.json projects/api-client/src/schema.d.ts",
+    "contracts:generate": "pnpm --filter @alfa/agent build && pnpm --filter @alfa/backend contracts:generate",
+    "contracts:check": "pnpm contracts:generate && git diff --exit-code -- packages/api-client/openapi.json packages/api-client/src/schema.d.ts",
     "worker": "pnpm --filter @alfa/backend worker",
-    "test:integration": "pnpm --filter @alfa/backend test:integration"
+    "test:integration": "pnpm --filter @alfa/backend test:integration",
+    "db:seed": "pnpm --filter @alfa/backend db:seed"
   },
   "devDependencies": {
     "@types/node": "26.6.5",

@@ -1,4 +1,4 @@
-# research/agent
+# packages/agent
 
 Исследовательский CLI-прототип. HTTP-интеграция с frontend еще не реализована; [аудит и план переноса в backend](../../specs/08-research-integration.md).
 ## Как устроено

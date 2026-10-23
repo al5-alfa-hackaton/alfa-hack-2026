@@ -45,6 +45,7 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
+      seed: { condition: service_completed_successfully }
     healthcheck:
       test:
         [
@@ -66,6 +67,16 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
 
+  seed:
+    <<: *app-build
+    profiles: [apps]
+    command: [pnpm, db:seed]
+    env_file: *backend-files
+    volumes: *data-volumes
+    environment: *backend-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
   worker:
     <<: *app-build
     profiles: [apps]
@@ -75,6 +86,7 @@ services:
     environment: *backend-env
     depends_on:
       migrate: { condition: service_completed_successfully }
+      seed: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
     stop_grace_period: 190s
 

@@ -3,7 +3,7 @@
 ```text
 projects/frontend/       React / TanStack Start / shadcn/ui
 projects/backend/        Fastify / Drizzle / PostgreSQL
-research/agent/          CLI данных, инструментов и агента
+packages/agent/          CLI данных, инструментов и агента
 specs/                   требования и план реализации
 docs/screenshots/        снимки действующего frontend
 ```

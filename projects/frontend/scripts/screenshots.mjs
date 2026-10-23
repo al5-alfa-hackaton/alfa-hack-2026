@@ -6,9 +6,15 @@ import { chromium, expect } from '@playwright/test'
 const root = fileURLToPath(new URL('../../../', import.meta.url))
 const output = resolve(root, 'docs/screenshots')
 const baseURL = process.env.SCREENSHOT_BASE_URL ?? 'http://127.0.0.1:3000'
-const keyFile = process.env.SCREENSHOT_ACCESS_KEY_FILE
-if (!keyFile) throw new Error('Set SCREENSHOT_ACCESS_KEY_FILE to an ignored local access-key file')
-const token = (await readFile(resolve(root, keyFile), 'utf8')).trim()
+const username = process.env.SCREENSHOT_USERNAME ?? 'client_u_1595'
+const credentialsFile = process.env.SCREENSHOT_CREDENTIALS_FILE ?? 'docs/dataset-accounts.md'
+const credentials = await readFile(resolve(root, credentialsFile), 'utf8')
+const row = credentials
+  .split('\n')
+  .map((line) => line.split('|').map((cell) => cell.trim()))
+  .find((cells) => cells[2] === username)
+const password = row?.[3]
+if (!password) throw new Error('Username is absent from the seeded credentials file')
 await mkdir(output, { recursive: true })
 const browser = await chromium.launch({
   executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
@@ -38,7 +44,9 @@ try {
   await page.goto(baseURL)
   await page.getByRole('heading', { name: 'Вход в аналитику' }).waitFor()
   await screen('login')
-  const login = await context.request.post(baseURL + '/api/v1/session', { data: { token } })
+  const login = await context.request.post(baseURL + '/api/v1/session', {
+    data: { username, password },
+  })
   if (login.status() !== 200) throw new Error('Could not authenticate screenshot session')
   await page.goto(baseURL + '/company')
   await page.getByRole('table').waitFor()

@@ -1,25 +1,26 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
-import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { AppError, type Principal } from '../shared/kernel/errors.js'
 import type { Config } from '../config.js'
+import type { Runtime } from '../composition/runtime.js'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
+import { registrationSchema, usernameSchema } from '../modules/identity/index.js'
 import { z } from 'zod'
 const cookieName = 'alfa_session'
 const ttl = 8 * 60 * 60
 const principals = new WeakMap<FastifyRequest, Principal>()
-export const authRateKey = (req: FastifyRequest) => principals.get(req)?.id ?? req.ip
+export const authRateKey = (req: FastifyRequest) =>
+  principals.has(req) ? 'user:' + principals.get(req)!.id : 'ip:' + req.ip
 export function principalOf(req: FastifyRequest) {
-  const p = principals.get(req)
-  if (!p) throw new AppError('unauthorized', 'Требуется авторизация')
-  return p
+  const principal = principals.get(req)
+  if (!principal) throw new AppError('unauthorized', 'Требуется авторизация')
+  return principal
 }
-export function registerAuth(app: FastifyInstance, config: Config) {
-  const users = config.accounts
-  if (config.NODE_ENV === 'production' && !users.length)
-    throw new Error('AUTH_USERS_JSON must contain service accounts in production')
-  const digest = (s: string) => createHash('sha256').update(s).digest()
+export function registerAuth(app: FastifyInstance, config: Config, runtime: Runtime) {
+  const digest = (value: string) => createHash('sha256').update(value).digest()
+  const stamp = (hash: string) => digest(hash).toString('hex')
   const byToken = (token: string) =>
-    users.find((u) => timingSafeEqual(digest(u.token), digest(token)))
+    config.accounts.find((user) => timingSafeEqual(digest(user.token), digest(token)))
   const cookieOptions = {
     path: '/',
     httpOnly: true,
@@ -27,39 +28,58 @@ export function registerAuth(app: FastifyInstance, config: Config) {
     secure: config.NODE_ENV === 'production',
   }
   function checkOrigin(req: FastifyRequest) {
-    // Browsers send Origin for mutations; non-browser bearer clients do not need cookies.
     if (req.headers.origin && req.headers.origin !== new URL(config.CORS_ORIGIN).origin)
       throw new AppError('unauthorized', 'Недопустимый источник запроса')
   }
+  const sessionSchema = z.object({ id: z.string(), expiresAt: z.iso.datetime() })
+  function session(reply: FastifyReply, id: string, hash: string) {
+    const expires = Date.now() + ttl * 1000
+    reply.setCookie(cookieName, JSON.stringify({ id, expires, stamp: stamp(hash) }), {
+      ...cookieOptions,
+      signed: true,
+      maxAge: ttl,
+    })
+    return { id, expiresAt: new Date(expires).toISOString() }
+  }
   app.addHook('preHandler', async (req) => {
     if (!req.url.startsWith('/v1/')) return
-    if (req.routeOptions.url === '/v1/session') {
+    if (req.routeOptions.url === '/v1/session' || req.routeOptions.url === '/v1/registrations') {
       checkOrigin(req)
       return
     }
     const header = req.headers.authorization
     if (config.DEV_AUTH && !header && !req.cookies[cookieName]) {
-      principals.set(req, { id: 'local-user', companyIds: ['U_1', 'U_3'] })
+      const principal = { id: 'local-user', companyIds: ['U_1', 'U_3'] }
+      principals.set(req, principal)
+      await runtime.hydrate(principal)
       return
     }
-    const token = header?.startsWith('Bearer ') ? header.slice(7) : ''
-    let user = header ? byToken(token) : undefined
-    if (!header && req.cookies[cookieName]) {
+    let principal: Principal | undefined
+    if (header) {
+      const user = byToken(header.startsWith('Bearer ') ? header.slice(7) : '')
+      if (user) principal = { id: user.id, companyIds: user.companyIds }
+    } else if (req.cookies[cookieName]) {
       const signed = req.unsignCookie(req.cookies[cookieName])
       if (signed.valid && signed.value) {
+        let claims: { id: string; expires: number; stamp?: string } | undefined
         try {
-          const session = z
-            .object({ id: z.string(), expires: z.number() })
+          claims = z
+            .object({ id: z.string(), expires: z.number(), stamp: z.string().optional() })
             .parse(JSON.parse(signed.value))
-          if (session.expires > Date.now()) user = users.find((u) => u.id === session.id)
         } catch {
-          /* Invalid cookies are treated as unauthenticated. */
+          /* Invalid cookies are unauthenticated. */
+        }
+        if (claims && claims.expires > Date.now()) {
+          const user = await runtime.principalFor(claims.id)
+          if (user && ((user.legacy && !claims.stamp) || claims.stamp === stamp(user.hash)))
+            principal = user.principal
         }
       }
       if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) checkOrigin(req)
     }
-    if (!user) throw new AppError('unauthorized', 'Требуется авторизация')
-    principals.set(req, { id: user.id, companyIds: user.companyIds })
+    if (!principal) throw new AppError('unauthorized', 'Требуется авторизация')
+    await runtime.hydrate(principal)
+    principals.set(req, principal)
   })
   app.register(async (child) => {
     const api = child.withTypeProvider<ZodTypeProvider>()
@@ -71,21 +91,40 @@ export function registerAuth(app: FastifyInstance, config: Config) {
           operationId: 'createSession',
           tags: ['workspace'],
           security: [],
-          body: z.object({ token: z.string().min(32).max(4096) }),
-          response: { 200: z.object({ id: z.string(), expiresAt: z.iso.datetime() }) },
+          body: z.union([
+            z.object({ username: usernameSchema, password: z.string().min(1).max(128) }).strict(),
+            z.object({ token: z.string().min(32).max(4096) }).strict(),
+          ]),
+          response: { 200: sessionSchema },
         },
       },
       async (req, reply) => {
-        const user = byToken(req.body.token)
-        if (!user) throw new AppError('unauthorized', 'Ключ доступа не принят')
-        const expires = Date.now() + ttl * 1000
-        reply.header('Cache-Control', 'no-store')
-        reply.setCookie(cookieName, JSON.stringify({ id: user.id, expires }), {
-          ...cookieOptions,
-          signed: true,
-          maxAge: ttl,
-        })
-        return { id: user.id, expiresAt: new Date(expires).toISOString() }
+        if ('token' in req.body) {
+          const user = byToken(req.body.token)
+          if (!user) throw new AppError('unauthorized', 'Ключ доступа не принят')
+          return session(reply, user.id, user.token)
+        }
+        const user = await runtime.identity.authenticate(req.body.username, req.body.password)
+        return session(reply, user.id, user.passwordHash)
+      },
+    )
+    api.post(
+      '/v1/registrations',
+      {
+        config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+        schema: {
+          operationId: 'registerUser',
+          tags: ['workspace'],
+          security: [],
+          body: registrationSchema,
+          response: { 201: sessionSchema.extend({ companyId: z.string() }) },
+        },
+      },
+      async (req, reply) => {
+        const user = await runtime.identity.register(req.body)
+        return reply
+          .code(201)
+          .send({ ...session(reply, user.id, user.passwordHash), companyId: user.companyIds[0]! })
       },
     )
     api.delete(

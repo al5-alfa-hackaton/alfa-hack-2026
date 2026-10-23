@@ -1,16 +1,16 @@
 import { Queue, Worker } from 'bullmq'
 import { Redis } from 'ioredis'
-import { ExecutionError } from './modules/analytics/infrastructure/checkpoint-runtime.js'
+import { agentErrorCode } from './modules/analytics/infrastructure/agent-error.js'
 import { loadConfig } from './config.js'
 import { compose } from './composition/runtime.js'
 const config = loadConfig()
 if (!config.DATABASE_URL) throw new Error('Worker requires DATABASE_URL')
-if (config.AGENT_PROVIDER === 'disabled') throw new Error('Worker requires a configured agent provider')
+if (config.AGENT_PROVIDER === 'disabled')
+  throw new Error('Worker requires a configured agent provider')
 const runtime = await compose(config)
 const connection = new Redis(config.REDIS_URL, { maxRetriesPerRequest: null })
 connection.on('error', () => {})
 const queue = new Queue('analysis-runs', { connection, prefix: config.QUEUE_PREFIX })
-const users = config.accounts
 let closing = false,
   dispatching = false
 let dispatchTask: Promise<void> | undefined
@@ -42,8 +42,9 @@ const worker = new Worker(
       const principal =
         config.DEV_AUTH && run.userId === 'local-user'
           ? { id: run.userId, companyIds: ['U_1', 'U_3'] }
-          : users.find((u) => u.id === run.userId)
+          : (await runtime.principalFor(run.userId))?.principal
       if (!principal) throw new Error('scope_revoked')
+      await runtime.hydrate(principal)
       runtime.companies.context(principal, run.companyId)
       const result = await runtime.agent.execute(
         run,
@@ -54,17 +55,7 @@ const worker = new Worker(
       controller.signal.throwIfAborted()
       await runtime.store.finish(run.id, result, undefined, run.leaseToken)
     } catch (error) {
-      const message = error instanceof Error ? error.message : ''
-      await runtime.store.finish(
-        run.id,
-        undefined,
-        error instanceof ExecutionError
-          ? error.code
-          : ['scope_revoked', 'run_timeout'].includes(message)
-            ? message
-            : 'agent_failed',
-        run.leaseToken,
-      )
+      await runtime.store.finish(run.id, undefined, agentErrorCode(error), run.leaseToken)
     } finally {
       clearTimeout(timeout)
       clearInterval(tick)

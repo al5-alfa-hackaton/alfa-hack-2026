@@ -4,7 +4,7 @@ import {
   companyGroup,
   companyCounterparties,
   type DataContext,
-} from '@alfa/research-agent'
+} from '@alfa/agent'
 import { AppError } from '../../../shared/kernel/errors.js'
 import type { CompanyCatalog, CompanyContext } from '../application/catalog.js'
 export class ResearchCatalog implements CompanyCatalog {
@@ -12,6 +12,7 @@ export class ResearchCatalog implements CompanyCatalog {
   constructor(
     private readonly ctx: DataContext,
     private readonly mode: 'fixture' | 'research',
+    private readonly names: Map<string, string> = new Map(),
   ) {
     this.corpusVersion = createHash('sha256')
       .update(JSON.stringify([ctx.news, ctx.bank]))
@@ -23,7 +24,7 @@ export class ResearchCatalog implements CompanyCatalog {
       .filter(([, rows]) => rows.some((r) => r.clientType === 'CLIENT'))
       .map(([id, rows]) => ({
         id,
-        displayName: `Компания ${id}`,
+        displayName: this.names.get(id) ?? `Компания ${id}`,
         industry: rows[0]?.okvedName ?? null,
         region: rows[0]?.region ?? null,
       }))
@@ -38,6 +39,12 @@ export class ResearchCatalog implements CompanyCatalog {
     const company = this.list().find((c) => c.id === id)
     if (!company) throw new AppError('not_found', 'Компания недоступна')
     const p = companyProfile(this.ctx, id)
+    const group = companyGroup(this.ctx, id)
+    const groupIndustries = group.memberIndustries
+      .slice(0, 5)
+      .map((entry) => `${entry.name} — ${entry.companies}`)
+    if (group.memberIndustries.length > 5)
+      groupIndustries.push(`ещё ${group.memberIndustries.length - 5}`)
     const counterparties = companyCounterparties(this.ctx, id)
     const relatedIndustries = (side: unknown) => {
       const s = side as {
@@ -50,9 +57,10 @@ export class ResearchCatalog implements CompanyCatalog {
         : null
     }
     const features = [
-      ...(['leasing', 'deposits', 'payroll', 'factoring'] as const).map((key) => ({
+      ...(['guarantees', 'leasing', 'deposits', 'payroll', 'factoring'] as const).map((key) => ({
         id: key,
         label: {
+          guarantees: 'Гарантии в Альфа-Банке',
           leasing: 'Лизинг',
           deposits: 'Депозиты',
           payroll: 'Зарплатный проект',
@@ -63,10 +71,7 @@ export class ResearchCatalog implements CompanyCatalog {
       {
         id: 'group_industries',
         label: 'Отрасли участников группы',
-        value:
-          companyGroup(this.ctx, id)
-            .members.flatMap((m) => (m.okvedName ? [m.okvedName] : []))
-            .join('; ') || null,
+        value: groupIndustries.join('; ') || null,
       },
       {
         id: 'supplier_industries',
@@ -98,6 +103,7 @@ export class ResearchCatalog implements CompanyCatalog {
     ]
     return {
       company,
+      profileSource: this.names.has(id) ? 'user' : 'dataset',
       profileVersion: createHash('sha256')
         .update(JSON.stringify({ p, features }))
         .digest('hex')

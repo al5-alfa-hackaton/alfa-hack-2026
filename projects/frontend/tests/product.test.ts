@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { featureValue } from '../src/entities/company/model.ts'
-import { ApiError, createApiClient, unwrap } from '../../api-client/src/index.ts'
+import { ApiError, createApiClient, unwrap } from '../../../packages/api-client/src/index.ts'
 
 test('unknown profile fields stay unknown and flags are readable', () => {
   assert.equal(featureValue(null), 'Нет данных')

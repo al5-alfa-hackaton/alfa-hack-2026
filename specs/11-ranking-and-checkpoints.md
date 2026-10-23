@@ -61,7 +61,7 @@ Drizzle migration добавляет `agent_model_calls`: уникальный `
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm --filter @alfa/research-agent build
+pnpm --filter @alfa/agent build
 pnpm db:migrate
 # После остановки старых worker-процессов:
 pnpm worker

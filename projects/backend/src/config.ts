@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { fileURLToPath } from 'node:url'
+import { DEFAULT_RANKING_LIMIT, MAX_RANKING_LIMIT } from './modules/analytics/domain/ranking.js'
 export const accountsSchema = z.array(
   z.object({
     id: z.string().min(1).max(100),
@@ -21,7 +22,10 @@ const schema = z.object({
     .regex(/^[a-z0-9-]+$/)
     .default('alfa'),
   DEV_AUTH: bool.default(false),
+  ALLOW_UNCAPPED_LLM: bool.default(false),
   AUTH_USERS_JSON: z.string().default('[]'),
+  AUTH_SESSION_SECRET: z.string().min(32).optional(),
+  ALLOW_DATASET_LOGIN: bool.optional(),
   AGENT_PROVIDER: z.enum(['disabled', 'fixture', 'langgraph']).default('disabled'),
   DATA_DIR: z.string().default(fileURLToPath(new URL('../../../data', import.meta.url))),
   LLM_BASE_URL: z.url().optional(),
@@ -38,7 +42,12 @@ const schema = z.object({
     .default('deepseek/deepseek-v4.1-flash'),
   LLM_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(30000),
   RUN_MAX_RECOVERIES: z.coerce.number().int().min(0).max(3).default(2),
-  RANKING_LIMIT: z.coerce.number().int().min(1).max(5).default(3),
+  RANKING_LIMIT: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_RANKING_LIMIT)
+    .default(DEFAULT_RANKING_LIMIT),
   RUN_TIMEOUT_MS: z.coerce.number().int().min(1000).max(600000).default(180000),
   DAILY_BUDGET_RUB: z.coerce.number().min(0.01).multipleOf(0.01).max(500).default(500),
   RUN_RESERVATION_RUB: z.coerce.number().min(0.01).multipleOf(0.01).max(500).default(25),
@@ -63,19 +72,29 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     new Set(accounts.map((a) => a.token)).size !== accounts.length
   )
     throw new Error('Account IDs and tokens must be unique')
-  if (config.NODE_ENV === 'production' && !accounts.length)
-    throw new Error('Production requires server accounts')
+  if (config.NODE_ENV === 'production' && !accounts.length && !config.DATABASE_URL)
+    throw new Error('Production requires a database or server accounts')
   if (config.NODE_ENV === 'production' && (config.DEV_AUTH || config.AGENT_PROVIDER === 'fixture'))
     throw new Error('Production requires authentication and the langgraph provider')
+  if (config.ALLOW_UNCAPPED_LLM && config.NODE_ENV !== 'development')
+    throw new Error('ALLOW_UNCAPPED_LLM is only permitted in development')
+  if (config.NODE_ENV === 'production' && !config.AUTH_SESSION_SECRET)
+    throw new Error('Production requires AUTH_SESSION_SECRET')
   if (config.AGENT_PROVIDER === 'langgraph') {
     if (!config.LLM_API_KEY || !config.LLM_BASE_URL || !config.DATA_DIR)
       throw new Error('LangGraph requires LLM_BASE_URL, LLM_API_KEY and DATA_DIR')
     if (
-      !config.LLM_GATEWAY_REQUEST_CAP_RUB ||
-      config.LLM_GATEWAY_REQUEST_CAP_RUB * (config.AGENT_MAX_STEPS + 2) > config.RUN_RESERVATION_RUB
+      !config.ALLOW_UNCAPPED_LLM &&
+      (!config.LLM_GATEWAY_REQUEST_CAP_RUB ||
+        config.LLM_GATEWAY_REQUEST_CAP_RUB * (config.AGENT_MAX_STEPS + 2) >
+          config.RUN_RESERVATION_RUB)
     )
       throw new Error('Confirm the gateway hard request cap and reserve (maxSteps + 2) calls')
   }
-  return { ...config, accounts }
+  return {
+    ...config,
+    ALLOW_DATASET_LOGIN: config.ALLOW_DATASET_LOGIN ?? config.NODE_ENV !== 'production',
+    accounts,
+  }
 }
 export type Config = ReturnType<typeof loadConfig>

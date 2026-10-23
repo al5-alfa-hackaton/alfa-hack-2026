@@ -1,6 +1,6 @@
 # API для frontend и исследовательского агента
 
-**P0 пути реализованы.** Машиночитаемый текущий контракт — [OpenAPI](../projects/api-client/openapi.json), Swagger UI — /docs. Ниже сохранены целевые продуктовые DTO/семантика; отличия MVP (названия run полей, ограниченные окна истории, упрощенное ранжирование и auth) явно описаны в [10](10-backend-implementation.md). Основной frontend demo остается локальным, вкладка /company → Данные сервиса использует generated client. P1 остается планом.
+**P0 пути реализованы.** Машиночитаемый текущий контракт — [OpenAPI](../packages/api-client/openapi.json), Swagger UI — /docs. Ниже сохранены целевые продуктовые DTO/семантика; отличия MVP (названия run полей, ограниченные окна истории, упрощенное ранжирование и auth) явно описаны в [10](10-backend-implementation.md). Основной frontend demo остается локальным, вкладка /company → Данные сервиса использует generated client. P1 остается планом.
 
 Browser prefix — `/api/v1`; Fastify prefix — `/v1` (Nitro снимает `/api`). Далее пути указаны для Fastify. JSON — UTF-8, время ISO 8601 с timezone, суммы — decimal string + RUB/период. API не возвращает local filesystem paths, ключи, prompts или hidden reasoning.
 

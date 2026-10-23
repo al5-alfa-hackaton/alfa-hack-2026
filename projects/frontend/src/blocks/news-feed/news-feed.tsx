@@ -1,6 +1,6 @@
 import { ArrowDownToLine, ArrowRight, Search } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
-import { featureValue } from '@/entities/company'
+import { featureValue, relevanceReason } from '@/entities/company'
 import { useWorkspace } from '@/entities/workspace'
 import type { Kind, Insight } from '@/entities/insight'
 import { errorMessage } from '@/shared/lib'
@@ -158,7 +158,7 @@ export function NewsRow({
             <span tabIndex={0} className="max-w-full text-xs leading-5 text-muted-foreground">
               <span className="font-medium text-foreground">Почему для вас</span>
               <span className="mx-1.5">·</span>
-              {item.relevance.reasons.join(' · ')}
+              {item.relevance.reasons.map(relevanceReason).join(' · ')}
             </span>
           </TooltipTrigger>
           <TooltipContent className="max-w-xs">
@@ -229,6 +229,9 @@ export function FeedContext() {
               </p>
             ))}
           </section>
+          {data.profileSource === 'user' && (
+            <p className="text-xs text-muted-foreground">Профиль заполнен пользователем.</p>
+          )}
           {data.dataMode === 'fixture' && (
             <p className="text-xs text-muted-foreground">Подключён тестовый набор данных.</p>
           )}

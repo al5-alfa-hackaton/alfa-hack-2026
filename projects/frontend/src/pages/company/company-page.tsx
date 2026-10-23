@@ -66,8 +66,12 @@ export function CompanyPage() {
             </Table>
             <p className="mt-4 break-all text-xs leading-5 text-muted-foreground">
               Источник:{' '}
-              {data.dataMode === 'research' ? 'набор данных организаторов' : 'тестовый набор'} ·
-              Версия профиля: {data.profileVersion}
+              {data.profileSource === 'user'
+                ? 'профиль, заполненный пользователем'
+                : data.dataMode === 'research'
+                  ? 'набор данных организаторов'
+                  : 'тестовый набор'}{' '}
+              · Версия профиля: {data.profileVersion}
             </p>
           </section>
           <aside className="space-y-5">

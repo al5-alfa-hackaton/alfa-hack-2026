@@ -1,7 +1,8 @@
+import { seedDatasetAccounts } from '../src/modules/identity/infrastructure/seed-dataset.js'
 import { createServer } from 'node:http'
 import { LangGraphRuntime } from '../src/modules/analytics/infrastructure/agent-runtime.js'
 import { ResearchCatalog } from '../src/modules/companies/infrastructure/research-catalog.js'
-import { buildAgentGraph } from '@alfa/research-agent'
+import { buildAgentGraph } from '@alfa/agent'
 import { AIMessage, HumanMessage } from '@langchain/core/messages'
 import { ScriptedModel, toolCall } from './scripted-model.js'
 import { createData } from '../src/composition/data.js'
@@ -37,6 +38,7 @@ let admin: pg.Pool,
   worker: ChildProcess,
   redis: Redis,
   queue: Queue
+let integrationConfig: ReturnType<typeof loadConfig>
 let workerError = ''
 async function waitRun(runId: string) {
   for (let n = 0; n < 100; n++) {
@@ -75,12 +77,14 @@ describe.skipIf(!enabled)('PostgreSQL + Redis + actual worker', () => {
       QUEUE_PREFIX: queuePrefix,
       DEV_AUTH: 'false',
       AGENT_PROVIDER: 'fixture',
+      AUTH_SESSION_SECRET: 'integration-session-secret-'.repeat(3),
       AUTH_USERS_JSON: JSON.stringify([
         { id: 'alice', token: alice, companyIds: ['U_1'] },
         { id: 'bob', token: bob, companyIds: ['U_3'] },
       ]),
     }
     const config = loadConfig(env)
+    integrationConfig = config
     runtime = await compose(config)
     await migrate(runtime.database!.db, { migrationsFolder: 'drizzle' })
     await setupCheckpoints(runtime.database!.pool)
@@ -337,7 +341,7 @@ describe.skipIf(!enabled)('PostgreSQL + Redis + actual worker', () => {
       )
       await persistence.bindScope('checkpoint-test-v1')
       const ctx = await createData(loadConfig({ NODE_ENV: 'test' })),
-        audit: import('@alfa/research-agent').ToolCallRecord[] = []
+        audit: import('@alfa/agent').ToolCallRecord[] = []
       const firstModel = new ScriptedModel([toolCall()])
       const scope = {
         configurable: { thread_id: run.id, companyId: run.companyId },
@@ -558,7 +562,7 @@ describe.skipIf(!enabled)('PostgreSQL + Redis + actual worker', () => {
       calls++
       const content =
         calls === 1
-          ? 'Исследование'
+          ? `Событие ${news.id}\nФакт: «${news.text}» [${news.id}]`
           : JSON.stringify({
               events: [
                 {
@@ -722,6 +726,167 @@ describe.skipIf(!enabled)('PostgreSQL + Redis + actual worker', () => {
     }
     expect((await waitRun(runId)).status).toBe('partial')
   }, 15000)
+
+  it('seeds isolated dataset accounts idempotently and authenticates usernames/passwords', async () => {
+    const accounts = [
+      { companyId: 'U_1', username: 'client_u_1', password: 'dataset-' + 'a'.repeat(24) },
+      { companyId: 'U_3', username: 'client_u_3', password: 'dataset-' + 'b'.repeat(24) },
+    ]
+    await seedDatasetAccounts(runtime.database!.db, accounts)
+    await seedDatasetAccounts(runtime.database!.db, accounts)
+    expect(
+      await runtime.database!.db.select().from(t.users).where(eq(t.users.source, 'dataset')),
+    ).toHaveLength(2)
+    const login = await app.inject({
+      method: 'POST',
+      url: '/v1/session',
+      payload: { username: 'CLIENT_U_1', password: accounts[0]!.password },
+    })
+    expect(login.statusCode).toBe(200)
+    expect(login.body).not.toContain('password')
+    const cookie = login.cookies[0]!
+    const scoped = { cookie: cookie.name + '=' + encodeURIComponent(cookie.value) }
+    expect(
+      (await app.inject({ url: '/v1/companies', headers: scoped }))
+        .json()
+        .items.map((c: { id: string }) => c.id),
+    ).toEqual(['U_1'])
+    expect(
+      (await app.inject({ url: '/v1/companies/U_3/context', headers: scoped })).statusCode,
+    ).toBe(404)
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/v1/session',
+          payload: { username: 'client_u_1', password: 'incorrect-password' },
+        })
+      ).statusCode,
+    ).toBe(401)
+  })
+  it('registers a user and company atomically, hydrates another API process, and runs the actual worker', async () => {
+    const body = {
+      username: 'owner_' + randomUUID().slice(0, 8),
+      password: 'new-company-password-2026',
+      company: {
+        name: 'Стальная перспектива',
+        industry: 'Производство стали',
+        region: 'Урал',
+        revenue: 25000000000,
+        products: { loans: true, guarantees: true },
+        customsCountries: ['Китай'],
+      },
+    }
+    const registration = await app.inject({
+      method: 'POST',
+      url: '/v1/registrations',
+      payload: body,
+    })
+    expect(registration.statusCode).toBe(201)
+    const result = registration.json()
+    const cookie = registration.cookies[0]!
+    const scope = { cookie: cookie.name + '=' + encodeURIComponent(cookie.value) }
+    expect(result.companyId).not.toBe('U_1')
+    const company = await app.inject({
+      url: '/v1/companies/' + result.companyId + '/context',
+      headers: scope,
+    })
+    expect(company.statusCode).toBe(200)
+    expect(company.json()).toMatchObject({
+      company: { displayName: body.company.name },
+      profileSource: 'user',
+    })
+    expect(company.json().features).toContainEqual({
+      id: 'loans',
+      label: 'Кредиты в Альфа-Банке',
+      value: 'true',
+    })
+    expect(company.json().limitations.join(' ')).toContain('пользователем')
+    expect(
+      (await app.inject({ url: '/v1/companies/U_1/context', headers: scope })).statusCode,
+    ).toBe(404)
+    const otherRuntime = await compose(integrationConfig)
+    const otherApp = await buildApp(integrationConfig, otherRuntime)
+    try {
+      const restored = await otherApp.inject({
+        url: '/v1/companies/' + result.companyId + '/context',
+        headers: scope,
+      })
+      expect(restored.statusCode).toBe(200)
+      expect(restored.json().company.displayName).toBe(body.company.name)
+    } finally {
+      await otherApp.close()
+      await otherRuntime.database!.pool.end()
+    }
+    const accepted = await app.inject({
+      method: 'POST',
+      url: '/v1/analysis-runs',
+      headers: { ...scope, 'idempotency-key': randomUUID() },
+      payload: { companyId: result.companyId, perspective: 'cfo', kind: 'refresh_feed' },
+    })
+    expect(accepted.statusCode).toBe(202)
+    let status = ''
+    for (let n = 0; n < 100; n++) {
+      const run = (
+        await app.inject({ url: '/v1/analysis-runs/' + accepted.json().runId, headers: scope })
+      ).json()
+      status = run.status
+      if (['partial', 'completed', 'failed', 'cancelled'].includes(status)) break
+      await delay(100)
+    }
+    expect(status).toBe('partial')
+    const feed = (
+      await app.inject({
+        url: '/v1/companies/' + result.companyId + '/insights?perspective=cfo',
+        headers: scope,
+      })
+    ).json()
+    expect(feed.items.length).toBeGreaterThan(0)
+    expect(feed.items.every((i: { companyId: string }) => i.companyId === result.companyId)).toBe(
+      true,
+    )
+    expect(
+      (await app.inject({ url: '/v1/analysis-runs/' + accepted.json().runId, headers })).statusCode,
+    ).toBe(404)
+    const before = await runtime.database!.db.select().from(t.customCompanies)
+    const duplicate = await app.inject({ method: 'POST', url: '/v1/registrations', payload: body })
+    expect(duplicate.statusCode).toBe(409)
+    expect(await runtime.database!.db.select().from(t.customCompanies)).toHaveLength(before.length)
+    const relogin = await app.inject({
+      method: 'POST',
+      url: '/v1/session',
+      payload: { username: body.username, password: body.password },
+    })
+    expect(relogin.statusCode).toBe(200)
+  }, 20000)
+  it('rejects scope injection, reserved seed logins, and cross-origin registration before writing data', async () => {
+    const valid = {
+      username: 'secure_owner',
+      password: 'strong-password-for-test',
+      company: { name: 'Новый профиль', industry: 'Металлургия', region: 'Урал' },
+    }
+    const count = (await runtime.database!.db.select().from(t.users)).length
+    for (const payload of [
+      { ...valid, companyIds: ['U_1'] },
+      { ...valid, username: 'client_u_999' },
+      { ...valid, company: { ...valid.company, id: 'U_1' } },
+    ])
+      expect(
+        (await app.inject({ method: 'POST', url: '/v1/registrations', payload })).statusCode,
+      ).toBe(400)
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/v1/registrations',
+          payload: valid,
+          headers: { origin: 'https://other.example' },
+        })
+      ).statusCode,
+    ).toBe(401)
+    expect(await runtime.database!.db.select().from(t.users)).toHaveLength(count)
+  })
+
   it('checks readiness against the migrated database and Redis', async () => {
     expect((await app.inject('/ready')).statusCode).toBe(200)
   })

@@ -1,7 +1,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { loadServerCompanies, loadServerContext, type Role } from '@/entities/company'
-import { api, ApiError, unwrap } from '@/shared/lib'
+import { api, ApiError, unwrap, type operations } from '@/shared/lib'
+
+export type RegistrationInput =
+  operations['registerUser']['requestBody']['content']['application/json']
 
 function useWorkspaceState() {
   const cache = useQueryClient()
@@ -77,10 +80,18 @@ function useWorkspaceState() {
       if (scope.company !== undefined) setCompanyId(scope.company)
       if (scope.role) setRole(scope.role)
     },
-    login: async (token: string) => {
-      unwrap(await api.POST('/v1/session', { body: { token } }))
+    login: async (username: string, password: string) => {
+      unwrap(await api.POST('/v1/session', { body: { username, password } }))
       cache.clear()
       setCompanyId('')
+      setRole('cfo')
+      setPreferencesUser(null)
+      await me.refetch()
+    },
+    register: async (input: RegistrationInput) => {
+      const result = unwrap(await api.POST('/v1/registrations', { body: input }))
+      cache.clear()
+      setCompanyId(result.companyId)
       setRole('cfo')
       setPreferencesUser(null)
       await me.refetch()

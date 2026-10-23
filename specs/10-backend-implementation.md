@@ -1,6 +1,9 @@
 # Реализованный backend · 22 октября 2026
 
-Основа — [архитектура пользователя](source/fastify-modular-clean-architecture.md), продуктовые требования, API-план и код `research/agent`. Этот документ описывает исполняемое состояние; требования следующих этапов остаются в 04–08.
+> Текущие SQL-аккаунты, вход по паролю, регистрация компании и структура packages описаны в [13-accounts-and-packages.md](13-accounts-and-packages.md). Описание входа по ключу ниже относится к предыдущему этапу; token остаётся для сервисных клиентов.
+
+
+Основа — [архитектура пользователя](source/fastify-modular-clean-architecture.md), продуктовые требования, API-план и код `packages/agent`. Этот документ описывает исполняемое состояние; требования следующих этапов остаются в 04–08.
 
 > Обновлено: [ранжирование и checkpoints реализованы](11-ranking-and-checkpoints.md). Ниже — базовая реализация и ее актуализированные ограничения.
 
@@ -35,7 +38,7 @@ projects/backend/src/
 
 - Swagger UI: `http://localhost:3001/docs`, JSON: `/docs/json`.
 - Fastify Zod request/response schemas → OpenAPI → `openapi-typescript` → `@alfa/api-client` (`openapi-fetch`).
-- Артефакты: `projects/api-client/openapi.json`, `src/schema.d.ts`; вручную не редактировать.
+- Артефакты: `packages/api-client/openapi.json`, `src/schema.d.ts`; вручную не редактировать.
 - `pnpm contracts:generate` обновляет контракт; `pnpm contracts:check` обнаруживает drift в Git.
 - Browser использует `/api/v1`, Nitro снимает `/api`. Entity API модулей company/analysis использует generated operations; shared transport не содержит business DTO.
 - Все рабочие экраны используют API: feed/saved/context/history/detail/documents/trace/questions/feedback. Browser fixtures и отдельная вкладка сервиса удалены; TanStack Query управляет cache/polling. [Обновление продукта](12-product-workspace.md).
@@ -55,7 +58,7 @@ Worker — отдельный процесс того же backend-пакета.
 
 ## Research и публикация
 
-`@alfa/research-agent` получил import-safe exports, build и declarations. Backend не запускает CLI через shell. Используются существующие LangGraph, BM25, seven typed tools и model allowlist кейса. AbortSignal и RunnableConfig явно проходят в модель; у live-адаптера `maxRetries=0`, чтобы не умножать стоимость скрытыми повторами. CFO/CEO и временной диапазон включаются в задачу; question получает исходный insight и последние сообщения собственной conversation.
+`@alfa/agent` получил import-safe exports, build и declarations. Backend не запускает CLI через shell. Используются существующие LangGraph, BM25, seven typed tools и model allowlist кейса. AbortSignal и RunnableConfig явно проходят в модель; у live-адаптера `maxRetries=0`, чтобы не умножать стоимость скрытыми повторами. CFO/CEO и временной диапазон включаются в задачу; question получает исходный insight и последние сообщения собственной conversation.
 
 После graph invoke выполняется отдельная структурирующая model call. Zod ограничивает draft; сервер проверяет цитаты по corpus. Фактический текст должен целиком совпадать с частью проверенной цитаты; bank_position требует bank document. AI inference требует известный company feature с непустым значением и явную uncertainty. Публичный summary собирается из прошедших проверку claims, а не из необработанного ответа модели. Невалидные claims исключаются; результат обозначается partial/insufficient_evidence. `complete` означает прохождение программных проверок, а не экспертное доказательство финансового вывода.
 
@@ -77,7 +80,7 @@ Live startup требует подтвержденный оператором **
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm --filter @alfa/research-agent build
+pnpm --filter @alfa/agent build
 # Скопировать только при отсутствии .env:
 cp projects/backend/.env.example projects/backend/.env
 pnpm infra:up

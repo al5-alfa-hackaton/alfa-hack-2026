@@ -1,5 +1,7 @@
 import type { Perspective, Insight } from './model.js'
-export const RANKING_VERSION = 'rules-2026-10-22.1'
+export const RANKING_VERSION = 'rules-2026-10-22.2'
+export const DEFAULT_RANKING_LIMIT = 10
+export const MAX_RANKING_LIMIT = 20
 export type RankingNews = {
   id: string
   title: string
@@ -16,7 +18,7 @@ const sectors = [
   /металл|стал[ьи]|сталь|прокат|чугун|ферросплав/,
   /угол|угл[яею]|кокс/,
   /рознич|магазин|ритейл|потребител/,
-  /нефт|газ[аоу]?\b|топлив/,
+  /нефт|(?:^|[^а-я])газ[аоу]?(?=$|[^а-я])|топлив/,
   /сельск|аграр|зерн|урожай/,
   /транспорт|перевоз|логистик/,
   /строител|цемент|недвижим|ипотек/,
@@ -31,7 +33,7 @@ export function rankNews(
   perspective: Perspective,
   asOf: string,
   range?: { since: string; until: string },
-  limit = 5,
+  limit = DEFAULT_RANKING_LIMIT,
 ): RankedNews[] {
   const at = Date.parse(asOf)
   if (!Number.isFinite(at)) throw new Error('Invalid ranking reference date')
