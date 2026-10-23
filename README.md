@@ -8,7 +8,7 @@
 
 Анализ выполняется собственным LangGraph-агентом в отдельном BullMQ worker. Ранжирование учитывает профиль и ракурс CFO/CEO; checkpoints и журнал вызовов сохраняются в SQL. Для генерации нужны настроенный разрешённый LLM gateway и подтверждённый предел стоимости запроса. Без них интерфейс показывает недоступность нового анализа, а профиль и ранее полученные результаты остаются доступны. Подмена ответа учебными данными исключена.
 
-[Запуск](#запуск) · [Данные и OCR](#данные-и-ocr) · [Аккаунты и архитектура](specs/13-accounts-and-packages.md) · [API](specs/05-api-and-ui.md) · [Research](packages/agent/README.md)
+[Запуск](#запуск) · [Данные и OCR](#данные-и-ocr) · [Аккаунты и архитектура](specs/13-accounts-and-packages.md) · [API](specs/05-api-and-ui.md) · [ML-часть](packages/agent/README.md)
 
 ## Запуск
 
@@ -90,4 +90,4 @@ Playwright использует настоящий API/worker с явно зад
 
 `pnpm infra:up` поднимает PostgreSQL/Redis. `docker compose --profile apps up --build` запускает dev-контейнеры с локальной server env и read-only `data/`; без настройки LLM не включайте worker (`docker compose --profile apps up --build frontend backend`). Миграции применяются отдельным job. Volumes сохраняются; `down -v` удаляет данные. Dockerfile поддерживает необязательный BuildKit secret `extra_ca` для доверенного корпоративного CA.
 
-[Все спецификации](specs/README.md) · [Research](packages/agent/README.md) · [Сторонние компоненты и лицензии](THIRD_PARTY_NOTICES.md)
+[Все спецификации](specs/README.md) · [ML-часть](packages/agent/README.md) · [Мониторинг качества](docs/quality-monitoring.md) · [Сторонние компоненты и лицензии](THIRD_PARTY_NOTICES.md)

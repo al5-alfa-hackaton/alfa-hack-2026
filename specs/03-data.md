@@ -33,7 +33,7 @@ Null/false/0 различаются. ОКВЭД/ID — строки. Production:
 
 ## Корпус
 
-RSS — в основном заголовок и лид, полный текст бывает у РБК. Search snippet (400 символов) не доказывает полноту. DTO должен содержать `contentExtent=title_only|lead|full`, published/fetched/updated timestamps. Текущий dedup использует URL hash и нормализованный заголовок; event clustering и сохранение всех source links еще нужны.
+RSS — в основном заголовок и лид, полный текст бывает у РБК. `news:fulltext` в `packages/agent` дополняет текст со страницы статьи (`textSource: 'article'`): на 23.10 полный текст у 1718 из 2001 новости, ТАСС остается с лидом. Search snippet (400 символов) не доказывает полноту. DTO должен содержать `contentExtent=title_only|lead|full`, published/fetched/updated timestamps. Текущий dedup использует URL hash и нормализованный заголовок; event clustering и сохранение всех source links еще нужны.
 
 PDF банка — преимущественно сканы. OCR передает подписанные значения, не восстанавливает неподписанные точки графиков. Сохранять document/page IDs, hash оригинала и страницы, OCR model/prompt version, качество и возможность ручной сверки.
 

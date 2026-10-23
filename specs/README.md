@@ -5,7 +5,7 @@
 ## Реализовано
 
 - **Frontend:** все рабочие экраны используют API и PostgreSQL, TanStack Query; вход по HttpOnly сессии без SSO. Browser fixtures и сценарные ответы удалены. [Актуальный контур](12-product-workspace.md).
-- **Research:** CLI-пакет `@alfa/agent`: CSV и связи, RSS, OCR PDF, BM25 с русским стеммингом, семь tools и собственный LangGraph-цикл. [Код и инструкции](../packages/agent/README.md). Raw/processed данные вне Git. Офлайн-тесты работают на fixtures.
+- **ML-часть:** пакет `@alfa/agent`: CSV и связи, RSS с полными текстами статей, OCR PDF, BM25 с русским стеммингом, семь tools и собственный LangGraph-цикл, разбор ответа кодом, ML-отбор событий по разметке новостей, наборы и метрики оценки качества. [Документация и результаты](../packages/agent/README.md), [мониторинг качества](../docs/quality-monitoring.md). Не подключенные к backend части — [HANDOFF](../packages/agent/HANDOFF.md). Raw/processed данные вне Git.
 - **Backend:** Fastify/Drizzle/PostgreSQL, `/health`, `/ready`. P0 REST/SSE, server-side bearer scope, SQL migrations, BullMQ/Redis worker, global budget reservations, LangGraph adapter и generated frontend types. [Текущее состояние и ограничения](10-backend-implementation.md).
 
 Fixture-проверки не означают выполненный платный live-прогон. Отчеты о моделях — исторические прогоны 21 октября, не новые измерения текущей сессии.
