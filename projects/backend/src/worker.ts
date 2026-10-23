@@ -11,7 +11,6 @@ const runtime = await compose(config)
 const connection = new Redis(config.REDIS_URL, { maxRetriesPerRequest: null })
 connection.on('error', () => {})
 const queue = new Queue('analysis-runs', { connection, prefix: config.QUEUE_PREFIX })
-const users = config.accounts
 let closing = false,
   dispatching = false
 let dispatchTask: Promise<void> | undefined
@@ -43,8 +42,9 @@ const worker = new Worker(
       const principal =
         config.DEV_AUTH && run.userId === 'local-user'
           ? { id: run.userId, companyIds: ['U_1', 'U_3'] }
-          : users.find((u) => u.id === run.userId)
+          : (await runtime.principalFor(run.userId))?.principal
       if (!principal) throw new Error('scope_revoked')
+      await runtime.hydrate(principal)
       runtime.companies.context(principal, run.companyId)
       const result = await runtime.agent.execute(
         run,

@@ -1,6 +1,6 @@
 packages:
   - projects/*
-  - research/*
+  - packages/*
 
 allowBuilds:
   esbuild: true

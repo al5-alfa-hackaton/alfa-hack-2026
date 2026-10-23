@@ -146,3 +146,35 @@ export const modelCalls = pgTable(
   },
   (t) => [primaryKey({ columns: [t.runId, t.callKey] })],
 )
+
+export const users = pgTable(
+  'users',
+  {
+    id: text('id').primaryKey(),
+    username: text('username').notNull().unique(),
+    passwordHash: text('password_hash').notNull(),
+    source: text('source', { enum: ['dataset', 'custom'] }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check('user_source', sql`${t.source} in ('dataset','custom')`)],
+)
+export const memberships = pgTable(
+  'company_memberships',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    companyId: text('company_id').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.companyId] }),
+    index('membership_company').on(t.companyId),
+  ],
+)
+export const customCompanies = pgTable('custom_companies', {
+  id: text('id').primaryKey(),
+  profile: jsonb('profile')
+    .$type<import('../../modules/identity/index.js').CompanyInput>()
+    .notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})

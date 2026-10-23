@@ -4,7 +4,7 @@ import {
   companyGroup,
   companyCounterparties,
   type DataContext,
-} from '@alfa/research-agent'
+} from '@alfa/agent'
 import { AppError } from '../../../shared/kernel/errors.js'
 import type { CompanyCatalog, CompanyContext } from '../application/catalog.js'
 export class ResearchCatalog implements CompanyCatalog {
@@ -12,6 +12,7 @@ export class ResearchCatalog implements CompanyCatalog {
   constructor(
     private readonly ctx: DataContext,
     private readonly mode: 'fixture' | 'research',
+    private readonly names: Map<string, string> = new Map(),
   ) {
     this.corpusVersion = createHash('sha256')
       .update(JSON.stringify([ctx.news, ctx.bank]))
@@ -23,7 +24,7 @@ export class ResearchCatalog implements CompanyCatalog {
       .filter(([, rows]) => rows.some((r) => r.clientType === 'CLIENT'))
       .map(([id, rows]) => ({
         id,
-        displayName: `Компания ${id}`,
+        displayName: this.names.get(id) ?? `Компания ${id}`,
         industry: rows[0]?.okvedName ?? null,
         region: rows[0]?.region ?? null,
       }))
@@ -102,6 +103,7 @@ export class ResearchCatalog implements CompanyCatalog {
     ]
     return {
       company,
+      profileSource: this.names.has(id) ? 'user' : 'dataset',
       profileVersion: createHash('sha256')
         .update(JSON.stringify({ p, features }))
         .digest('hex')

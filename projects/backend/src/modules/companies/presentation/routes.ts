@@ -12,6 +12,7 @@ export const companySummarySchema = z.object({
 export const companyContextSchema = z.object({
   company: companySummarySchema,
   profileVersion: z.string(),
+  profileSource: z.enum(['dataset', 'user']).optional(),
   corpusVersion: z.string(),
   dataMode: z.enum(['fixture', 'research']),
   features: z.array(z.object({ id: z.string(), label: z.string(), value: z.string().nullable() })),

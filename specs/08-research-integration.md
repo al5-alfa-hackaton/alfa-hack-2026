@@ -9,7 +9,7 @@
 
 ## Что изучено
 
-`research/agent`: data loaders, CSV normalization, RSS/allowlist, bank catalog/OCR, BM25, семь tools, graph/prompts, sources resolver, gateway client и CLI. Исторические артефакты: [smoke 21.10](../research/agent/results/llm-smoke-2026-10-21.md), [OCR comparison](../research/agent/results/ocr-compare-2026-10-21/SUMMARY.md). Эти прогоны не повторялись: в текущем checkout нет полного data corpus; новые платные вызовы не выполнялись.
+`packages/agent`: data loaders, CSV normalization, RSS/allowlist, bank catalog/OCR, BM25, семь tools, graph/prompts, sources resolver, gateway client и CLI. Исторические артефакты: [smoke 21.10](../packages/agent/results/llm-smoke-2026-10-21.md), [OCR comparison](../packages/agent/results/ocr-compare-2026-10-21/SUMMARY.md). Эти прогоны не повторялись: в текущем checkout нет полного data corpus; новые платные вызовы не выполнялись.
 
 Текущий prompt version — `stage1-2026-10-21.8`. Граф и tools проверены 10 офлайн-тестами с ScriptedModel/fixtures. Это подтверждает базовую механику, но не качество на holdout, production безопасность или актуальную доступность gateway.
 

@@ -10,8 +10,8 @@
 **/*.log
 .pnpm-store
 specs
-research/agent/results
-research/agent/test
+packages/agent/results
+packages/agent/test
 
 data
 .local
