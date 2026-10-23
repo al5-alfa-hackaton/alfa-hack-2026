@@ -21,10 +21,12 @@
     "contracts:check": "pnpm contracts:generate && git diff --exit-code -- packages/api-client/openapi.json packages/api-client/src/schema.d.ts",
     "worker": "pnpm --filter @alfa/backend worker",
     "test:integration": "pnpm --filter @alfa/backend test:integration",
-    "db:seed": "pnpm --filter @alfa/backend db:seed"
+    "db:seed": "pnpm --filter @alfa/backend db:seed",
+    "monitor:report": "node --env-file-if-exists=projects/backend/.env scripts/monitor-report.mts"
   },
   "devDependencies": {
     "@types/node": "26.6.5",
+    "pg": "8.23.1",
     "prettier": "^3.9.10",
     "typescript": "5.9.3"
   }
