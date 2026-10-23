@@ -13,9 +13,11 @@ export {
   evidenceVerify,
 } from './tools/functions.js'
 export { type ToolCallRecord } from './tools/index.js'
+export { FEATURE_IDS, FEATURE_LABELS, isFeatureId, type FeatureId } from './features.js'
 export {
   parseFeedAnswer,
   toStructuredDraft,
+  noteLine,
   createFeedFinalizer,
   type FeedParseResult,
   type ParsedEvent,
@@ -23,6 +25,7 @@ export {
   type FeedNote,
 } from './agent/feed-parser.js'
 export { loadNewsTags, type NewsTag, type NewsTags } from './news/tagging.js'
+export { NEWS_TAG_PROMPT_VERSION } from './agent/prompts.js'
 export {
   rankNewsForCompany,
   companyExposures,

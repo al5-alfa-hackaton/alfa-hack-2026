@@ -1,7 +1,7 @@
 import { AIMessage, HumanMessage } from '@langchain/core/messages'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { createFeedFinalizer, parseFeedAnswer, toStructuredDraft } from '../src/agent/feed-parser.js'
+import { createFeedFinalizer, parseFeedAnswer, splitInlineList, toStructuredDraft } from '../src/agent/feed-parser.js'
 import { buildTaskPrompt, clarificationAllowed } from '../src/agent/prompts.js'
 import { fixtureContext } from './helpers.js'
 
@@ -65,6 +65,8 @@ describe('feed answer parser', () => {
     expect(result.events[1]!.claims.find((c) => c.kind === 'ai_inference')!.companyFeatureIds).toEqual(['industry', 'customs'])
     expect(result.issues).toContain('news_steel: признаки unknown_feature неизвестны и убраны')
     expect(() => backendDraftSchema.parse(toStructuredDraft(result))).not.toThrow()
+    expect(toStructuredDraft(result).events[0]!.risks).toEqual(['Если ставка по кредитам плавающая, процентные расходы не снизятся. (тип ставки неизвестен)'])
+    expect(toStructuredDraft(result).events[0]!.actions).toEqual(['Проверить долю кредитов с плавающей ставкой. (договоры в данных не раскрыты)'])
   })
 
   it('reads the answer line in question mode', () => {
@@ -91,6 +93,12 @@ describe('feed answer parser', () => {
     expect(event.answer).toBe('Проверьте в первую очередь:\n1) долю кредитов с плавающей ставкой;\n2) ближайшие погашения.\n\nКакая доля ваших кредитов привязана к ключевой ставке?')
     expect(event.clarification).toBe('Какая доля ваших кредитов привязана к ключевой ставке?')
     expect(event.claims.map((c) => c.kind)).toEqual(['fact', 'ai_inference'])
+  })
+
+  it('accepts document ids with underscores', () => {
+    const result = parseFeedAnswer('Событие news_fixture_steel: пропустить — нет связи.\nСобытие news_rate_2\nГлавное: Ставка высокая.', {})
+    expect(result.skipped).toEqual([{ eventId: 'news_fixture_steel', reason: 'нет связи' }])
+    expect(result.events.map((e) => e.eventId)).toEqual(['news_rate_2'])
   })
 
   it('accepts a short answer without facts for greetings', () => {
@@ -202,5 +210,24 @@ describe('task prompt modes', () => {
   it('marks feed mode and keeps the legacy single-question prompt', () => {
     expect(buildTaskPrompt({ mode: 'feed', question: 'Разбери события', events: [] })).toContain('Режим: лента')
     expect(buildTaskPrompt({ question: 'Как ставка влияет на компанию?' })).not.toContain('Режим:')
+  })
+})
+
+describe('форма ответа в режиме вопроса', () => {
+  it('разбивает список, написанный в одну строку', () => {
+    expect(splitInlineList('1) Ставка. 2) Спрос. 3) Курс.')).toBe('1) Ставка.\n2) Спрос.\n3) Курс.')
+    expect(splitInlineList('Рост на 2) процента')).toBe('Рост на 2) процента')
+  })
+
+  it('собирает ответ из рисков, если строка «Ответ» пустая', () => {
+    const text = [
+      'Событие news_a',
+      'Риск: Спрос группы на топливо упадет. Признаки: group_industries. Оговорка: доля неизвестна.',
+      'Риск: Лизинг подорожает. Признаки: leasing. Оговорка: тип ставки неизвестен.',
+      'Уточнение: Какая доля выручки приходится на группу?',
+    ].join('\n')
+    const [event] = parseFeedAnswer(text, { mode: 'question' }).events
+    expect(event!.answer).toBe('1) Спрос группы на топливо упадет.\n2) Лизинг подорожает.\n\nКакая доля выручки приходится на группу?')
+    expect(parseFeedAnswer(text).events[0]!.answer).toBe('Какая доля выручки приходится на группу?')
   })
 })

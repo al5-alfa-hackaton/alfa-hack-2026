@@ -12,7 +12,11 @@
     "agent:compare": "tsx --env-file-if-exists=.env src/cli/agent-compare.ts",
     "agent": "tsx --env-file-if-exists=.env src/cli/run-agent.ts",
     "news:tag": "tsx --env-file-if-exists=.env src/cli/news-tag.ts",
+    "news:fulltext": "tsx --env-file-if-exists=.env src/cli/news-fulltext.ts",
+    "news:refresh": "pnpm ingest --news && pnpm news:fulltext && pnpm news:tag",
     "news:rank": "tsx --env-file-if-exists=.env src/cli/news-rank.ts",
+    "eval:ranking": "tsx --env-file-if-exists=.env src/cli/eval-ranking.ts",
+    "eval:answers": "tsx --env-file-if-exists=.env src/cli/eval-answers.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc -p tsconfig.build.json"

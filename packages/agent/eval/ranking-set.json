@@ -1,0 +1,223 @@
+{
+ "asOf": "2026-10-23T12:00:00.000Z",
+ "scale": {
+  "2": "прямо влияет на деньги компании: ее отрасль, ключевые продукты, сырье",
+  "1": "косвенно: макрособытия при наличии долга, курс при внешней торговле, смежные отрасли и группа",
+  "0": "не связано с компанией"
+ },
+ "labeledBy": "ассистент по профилю компании и тексту новости, 23.10.2026; требует выборочной проверки командой",
+ "baseline": {
+  "version": "rules-2026-10-22.2",
+  "description": "правила rankNews из projects/backend, топ-5 на дату asOf"
+ },
+ "companies": [
+  {
+   "id": "U_1",
+   "industry": "Торговля оптовая неспециализированная",
+   "labels": {
+    "news_d7f2a3a5dd6c": 0,
+    "news_2bafbfeaa696": 0,
+    "news_f1202c54ef31": 0,
+    "news_d012f3f96271": 1,
+    "news_be8fab58fca7": 0,
+    "news_101f766f47c0": 0,
+    "news_3e213b7b1c89": 1,
+    "news_c1fbc01da96e": 0,
+    "news_0b5c57efbfb8": 0,
+    "news_69b3dd0fb2e3": 0,
+    "news_499407727cbe": 0,
+    "news_792a89876355": 0
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_d7f2a3a5dd6c",
+     "news_2bafbfeaa696",
+     "news_f1202c54ef31",
+     "news_d012f3f96271",
+     "news_be8fab58fca7"
+    ],
+    "ceo": [
+     "news_f1202c54ef31",
+     "news_d012f3f96271",
+     "news_101f766f47c0",
+     "news_3e213b7b1c89",
+     "news_d7f2a3a5dd6c"
+    ]
+   }
+  },
+  {
+   "id": "U_9250",
+   "industry": "Строительство прочих инженерных сооружений, не включенных в другие группировки",
+   "labels": {
+    "news_4d6edf53af14": 2,
+    "news_63c1e796a811": 0,
+    "news_fe94f4d8ebd3": 1,
+    "news_d012f3f96271": 1,
+    "news_afb3c629d0ae": 0,
+    "news_2d9da2eff215": 0,
+    "news_c572d14a640c": 2,
+    "news_c1fbc01da96e": 1,
+    "news_69b3dd0fb2e3": 1,
+    "news_499407727cbe": 1,
+    "news_8edc62185a4d": 2
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_4d6edf53af14",
+     "news_63c1e796a811",
+     "news_fe94f4d8ebd3",
+     "news_d012f3f96271",
+     "news_afb3c629d0ae"
+    ],
+    "ceo": [
+     "news_4d6edf53af14",
+     "news_fe94f4d8ebd3",
+     "news_d012f3f96271",
+     "news_afb3c629d0ae",
+     "news_2d9da2eff215"
+    ]
+   }
+  },
+  {
+   "id": "U_1595",
+   "industry": "Торговля розничная одеждой в специализированных магазинах",
+   "labels": {
+    "news_4d6edf53af14": 2,
+    "news_63c1e796a811": 0,
+    "news_a530a083ef61": 1,
+    "news_3c70185eeea1": 1,
+    "news_b9dc9aa0ed3e": 1,
+    "news_fe94f4d8ebd3": 1,
+    "news_d012f3f96271": 1,
+    "news_afb3c629d0ae": 0,
+    "news_146b6230c088": 2,
+    "news_44232ff142fd": 0,
+    "news_e45e011c1324": 1,
+    "news_b0dc80aabd86": 2,
+    "news_4b0920aaf7d0": 1,
+    "news_70371349a2e6": 1
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_4d6edf53af14",
+     "news_63c1e796a811",
+     "news_a530a083ef61",
+     "news_3c70185eeea1",
+     "news_b9dc9aa0ed3e"
+    ],
+    "ceo": [
+     "news_4d6edf53af14",
+     "news_fe94f4d8ebd3",
+     "news_d012f3f96271",
+     "news_afb3c629d0ae",
+     "news_146b6230c088"
+    ]
+   }
+  },
+  {
+   "id": "U_57706",
+   "industry": "Торговля оптовая твердым, жидким и газообразным топливом и подобными продуктами",
+   "labels": {
+    "news_4d6edf53af14": 1,
+    "news_63c1e796a811": 0,
+    "news_3c70185eeea1": 1,
+    "news_fe94f4d8ebd3": 1,
+    "news_bb83f9ef1e4c": 1,
+    "news_71535c0ef41f": 0,
+    "news_2569362b50db": 0,
+    "news_499407727cbe": 1,
+    "news_e1cad53b1771": 2,
+    "news_fd946e16f628": 2,
+    "news_eaf98c2dd22d": 2,
+    "news_765d73df14dd": 2,
+    "news_34ecadbc417d": 1,
+    "news_42be0b4a7c1d": 1,
+    "news_c8a765c9b7d9": 1
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_4d6edf53af14",
+     "news_63c1e796a811",
+     "news_3c70185eeea1",
+     "news_fe94f4d8ebd3",
+     "news_bb83f9ef1e4c"
+    ],
+    "ceo": [
+     "news_4d6edf53af14",
+     "news_fe94f4d8ebd3",
+     "news_71535c0ef41f",
+     "news_bb83f9ef1e4c",
+     "news_2569362b50db"
+    ]
+   }
+  },
+  {
+   "id": "U_68157",
+   "industry": "Прочие виды строительства жилых и нежилых зданий",
+   "labels": {
+    "news_4d6edf53af14": 2,
+    "news_d012f3f96271": 1,
+    "news_be8fab58fca7": 0,
+    "news_bb83f9ef1e4c": 2,
+    "news_f3cae1bd6b4f": 0,
+    "news_f1202c54ef31": 0,
+    "news_272883a48516": 1,
+    "news_c1fbc01da96e": 2,
+    "news_c572d14a640c": 1,
+    "news_499407727cbe": 2,
+    "news_69b3dd0fb2e3": 2,
+    "news_eb5d8730c91c": 0
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_4d6edf53af14",
+     "news_d012f3f96271",
+     "news_be8fab58fca7",
+     "news_bb83f9ef1e4c",
+     "news_f3cae1bd6b4f"
+    ],
+    "ceo": [
+     "news_4d6edf53af14",
+     "news_d012f3f96271",
+     "news_bb83f9ef1e4c",
+     "news_f1202c54ef31",
+     "news_272883a48516"
+    ]
+   }
+  },
+  {
+   "id": "U_3263",
+   "industry": "Перевозка грузов неспециализированными автотранспортными средствами",
+   "labels": {
+    "news_f3cae1bd6b4f": 0,
+    "news_f1202c54ef31": 0,
+    "news_0939469bebfe": 0,
+    "news_67ee1e8eb3c6": 0,
+    "news_3e04ea298f6a": 1,
+    "news_2842cc09bbd4": 0,
+    "news_7c02ec794b1a": 0,
+    "news_a4dae1cfb22b": 0,
+    "news_eaf98c2dd22d": 2,
+    "news_765d73df14dd": 2,
+    "news_566421fd0e48": 1,
+    "news_dac9ce22f171": 2
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_f3cae1bd6b4f",
+     "news_f1202c54ef31",
+     "news_0939469bebfe",
+     "news_67ee1e8eb3c6",
+     "news_3e04ea298f6a"
+    ],
+    "ceo": [
+     "news_f1202c54ef31",
+     "news_2842cc09bbd4",
+     "news_7c02ec794b1a",
+     "news_a4dae1cfb22b",
+     "news_0939469bebfe"
+    ]
+   }
+  }
+ ]
+}

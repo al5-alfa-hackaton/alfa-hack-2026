@@ -1,0 +1,220 @@
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { AIMessage, HumanMessage, type BaseMessage } from '@langchain/core/messages'
+import { createFeedFinalizer, type ParsedEvent } from '../agent/feed-parser.js'
+import { buildAgentGraph, textOf } from '../agent/graph.js'
+import { buildTaskPrompt, clarificationAllowed, PROMPT_VERSION } from '../agent/prompts.js'
+import { dataPaths, loadConfig } from '../config.js'
+import { loadDataContext } from '../data/context.js'
+import { checkForm, mean, overlap, unsupportedNumbers, type FormExpectation } from '../eval/metrics.js'
+import { FEATURE_IDS } from '../features.js'
+import { costOf, createChatModel } from '../llm.js'
+import { loadNewsTags } from '../news/tagging.js'
+import { rankNewsForCompany, type Perspective, type RankedNewsItem } from '../news/ranking.js'
+
+type Turn = { author: string; text: string }
+type Battery = {
+  feedCompanies: string[]
+  questionCompanies: string[]
+  perspective: Perspective
+  eventsPerFeed: number
+  questions: { id: string; text: string; conversation?: Turn[]; expect: FormExpectation }[]
+}
+type Draft = { events: (Omit<ParsedEvent, 'risks' | 'opportunities' | 'actions'> & { risks: string[]; opportunities: string[]; actions: string[] })[]; skipped: { eventId: string }[]; issues: string[] }
+type Run = { draft: Draft; sources: string[]; cost: number; ms: number; steps: number; error?: string }
+
+const battery = JSON.parse(await readFile(new URL('../../eval/questions.json', import.meta.url), 'utf8')) as Battery
+const config = loadConfig()
+const ctx = await loadDataContext(config)
+const tags = await loadNewsTags(dataPaths(config).newsTags)
+const asOf = new Date().toISOString()
+const date = asOf.slice(0, 10)
+const featureIds = [...FEATURE_IDS]
+const modelId: string = config.LLM_MODEL_AGENT ?? ''
+if (!modelId) throw new Error('LLM_MODEL_AGENT не задан в packages/agent/.env')
+
+async function run(companyId: string, ranked: RankedNewsItem[], prompt: Parameters<typeof buildTaskPrompt>[0], conversation: Turn[] = []): Promise<Run> {
+  const mode = prompt.mode ?? 'feed'
+  const graph = buildAgentGraph({
+    ctx,
+    model: createChatModel(config, modelId),
+    limits: { maxSteps: config.AGENT_MAX_STEPS, maxToolCalls: config.AGENT_MAX_TOOL_CALLS },
+    finalize: createFeedFinalizer({
+      ctx,
+      eventIds: ranked.map((r) => r.news.id),
+      featureIds,
+      mode,
+      allowClarification: clarificationAllowed(conversation),
+    }),
+  })
+  const started = Date.now()
+  try {
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(buildTaskPrompt({ ...prompt, conversation }))] },
+      { configurable: { companyId }, recursionLimit: config.AGENT_MAX_STEPS * 3 },
+    )
+    const messages = result.messages as BaseMessage[]
+    const draft = JSON.parse(textOf(result.structured as BaseMessage)) as Draft
+    return {
+      draft,
+      sources: messages.map(textOf),
+      cost: messages.filter((m): m is AIMessage => m instanceof AIMessage).reduce((s, m) => s + costOf(m), 0),
+      ms: Date.now() - started,
+      steps: result.steps,
+    }
+  } catch (error) {
+    return { draft: { events: [], skipped: [], issues: [] }, sources: [], cost: 0, ms: Date.now() - started, steps: 0, error: (error as Error).message.slice(0, 120) }
+  }
+}
+
+const generated = (e: Draft['events'][number]) => [
+  e.summary ?? '',
+  e.answer ?? '',
+  ...e.claims.filter((c) => c.kind === 'ai_inference').map((c) => c.text),
+  ...e.risks,
+  ...e.opportunities,
+  ...e.actions,
+]
+const count = (issues: string[], re: RegExp) => issues.filter((i) => re.test(i)).length
+
+type FeedRow = {
+  companyId: string
+  requested: number
+  published: number
+  skipped: number
+  facts: number
+  quotesRejected: number
+  featuresDropped: number
+  numbers: string[]
+  filled: number
+  run: Run
+  cards: Draft['events']
+}
+const feeds: FeedRow[] = []
+for (const companyId of battery.feedCompanies) {
+  const ranked = rankNewsForCompany(ctx, tags, companyId, { perspective: battery.perspective, asOf, limit: battery.eventsPerFeed })
+  const r = await run(companyId, ranked, {
+    mode: 'feed',
+    question: `Разбери события для компании в ракурсе ${battery.perspective}. Подготовь отдельный краткий разбор каждого выбранного события; позицию банка проверь отдельно.`,
+    asOf: date,
+    events: ranked.map((n) => ({ id: n.news.id, title: n.news.title, text: n.news.text, publishedAt: n.news.publishedAt, reasons: n.relevance.reasons })),
+  })
+  const published = r.draft.events.filter((e) => e.claims.some((c) => c.kind === 'fact'))
+  const row: FeedRow = {
+    companyId,
+    requested: ranked.length,
+    published: published.length,
+    skipped: r.draft.skipped.length,
+    facts: r.draft.events.reduce((s, e) => s + e.claims.filter((c) => c.kind !== 'ai_inference').length, 0),
+    quotesRejected: count(r.draft.issues, /цитата не найдена|без идентификатора|не на материал банка/),
+    featuresDropped: count(r.draft.issues, /неизвестны и убраны/),
+    numbers: unsupportedNumbers(published.flatMap(generated).join('\n'), r.sources),
+    filled: published.filter((e) => e.summary && e.risks.length + e.opportunities.length > 0 && e.actions.length > 0).length,
+    run: r,
+    cards: published,
+  }
+  feeds.push(row)
+  console.log(`лента ${companyId}: ${r.error ?? `${row.published}/${row.requested} опубликовано, пропущено ${row.skipped}, цитат отклонено ${row.quotesRejected}, чисел без источника ${row.numbers.length}, ${(r.ms / 1000).toFixed(0)} с, ${r.cost.toFixed(2)} ₽`}`)
+}
+
+type QuestionRow = { companyId: string; id: string; question: string; ok: boolean; detail: string; answer: string; clarification: string | null; numbers: string[]; run: Run }
+const questions: QuestionRow[] = []
+for (const companyId of battery.questionCompanies) {
+  const feed = feeds.find((f) => f.companyId === companyId)
+  const card = feed?.cards[0]
+  if (!card) {
+    console.log(`вопросы ${companyId}: нет опубликованной карточки, пропущено`)
+    continue
+  }
+  const news = ctx.news.find((n) => n.id === card.eventId)!
+  const ranked = rankNewsForCompany(ctx, tags, companyId, { perspective: battery.perspective, asOf, limit: battery.eventsPerFeed }).filter((r) => r.news.id === card.eventId)
+  const context = {
+    eventId: card.eventId,
+    title: news.title,
+    summary: card.summary,
+    claims: card.claims.map((c) => ({ kind: c.kind, text: c.text, uncertainty: c.uncertainty })),
+    risks: card.risks,
+    actions: card.actions,
+    evidence: card.claims.flatMap((c) => c.citations).map((c) => ({ documentId: c.documentId, quote: c.quote })),
+  }
+  for (const q of battery.questions) {
+    const conversation = q.conversation ?? []
+    const r = await run(
+      companyId,
+      ranked,
+      {
+        mode: 'question',
+        question: q.text,
+        asOf: date,
+        events: ranked.map((n) => ({ id: n.news.id, title: n.news.title, text: n.news.text, publishedAt: n.news.publishedAt, reasons: n.relevance.reasons })),
+        context,
+      },
+      conversation,
+    )
+    const event = r.draft.events.find((e) => e.answer)
+    const clarification = event?.clarification ?? null
+    const answer = (event?.answer ?? '').replace(clarification ?? '\u0000', '').trim()
+    const form = r.error ? { ok: false, detail: r.error } : checkForm({ answer, clarification, claims: event?.claims.filter((c) => c.kind !== 'ai_inference').length ?? 0 }, q.expect)
+    const sources = [...r.sources, q.text, ...conversation.map((t) => t.text)]
+    const row: QuestionRow = { companyId, id: q.id, question: q.text, ...form, answer, clarification, numbers: unsupportedNumbers(answer, sources), run: r }
+    questions.push(row)
+    console.log(`вопрос ${companyId} «${q.text}»: ${form.ok ? 'ок' : 'не ок'} — ${form.detail}, ${(r.ms / 1000).toFixed(0)} с, ${r.cost.toFixed(2)} ₽`)
+  }
+}
+
+const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : '—')
+const sum = <T,>(rows: T[], f: (r: T) => number) => rows.reduce((s, r) => s + f(r), 0)
+const okFeeds = feeds.filter((f) => !f.run.error)
+const answered = questions.filter((q) => !q.run.error)
+const repeats = battery.questionCompanies.flatMap((companyId) => {
+  const own = answered.filter((q) => q.companyId === companyId && ['risks', 'actions', 'three_sentences', 'brief'].includes(q.id))
+  return own.flatMap((a, i) => own.slice(i + 1).map((b) => overlap(a.answer, b.answer)))
+})
+const allCost = sum([...feeds.map((f) => f.run), ...questions.map((q) => q.run)], (r) => r.cost)
+const cell = (t: string) => t.replace(/\|/g, '/').replace(/\n+/g, '<br>')
+
+const report = [
+  `# Оценка ответов агента — ${date}`,
+  '',
+  `Промпт ${PROMPT_VERSION}, модель ${modelId}. События отобраны ML-отбором, ракурс ${battery.perspective}, по ${battery.eventsPerFeed} на компанию. Вопросы: \`eval/questions.json\`.`,
+  'Ответ агента разбирается кодом (`createFeedFinalizer`), как в сервисе; цитаты сверяются с документами.',
+  '',
+  '## Итого',
+  '',
+  '| Метрика | Значение | Что показывает |',
+  '| --- | --- | --- |',
+  `| Карточек опубликовано | ${sum(okFeeds, (f) => f.published)} из ${sum(okFeeds, (f) => f.requested)} (${pct(sum(okFeeds, (f) => f.published), sum(okFeeds, (f) => f.requested))}), пропущено агентом ${sum(okFeeds, (f) => f.skipped)} | Сколько отобранных событий дошло до пользователя. Пропуск — агент счел событие не связанным с компанией |`,
+  `| Точность цитат | ${pct(sum(okFeeds, (f) => f.facts), sum(okFeeds, (f) => f.facts + f.quotesRejected))} (отклонено ${sum(okFeeds, (f) => f.quotesRejected)}) | Доля фактов и позиций банка, найденных в документе дословно |`,
+  `| Заполненность карточки | ${pct(sum(okFeeds, (f) => f.filled), sum(okFeeds, (f) => f.published))} | Есть главное, хотя бы один риск или возможность и шаг |`,
+  `| Неизвестные признаки | ${sum(okFeeds, (f) => f.featuresDropped)} | Ссылки на признаки компании не из \`FEATURE_IDS\` |`,
+  `| Числа без источника (лента) | ${sum(okFeeds, (f) => f.numbers.length)} | Числа в выводах, которых нет ни в новостях, ни в ответах инструментов. Эвристика: показывает кандидатов на выдумку |`,
+  `| Форма ответа на вопрос | ${answered.filter((q) => q.ok).length} из ${questions.length} | N предложений, список, «кратко», приветствие, уточнение при нехватке данных и без повторного уточнения |`,
+  `| Числа без источника (вопросы) | ${sum(answered, (q) => q.numbers.length)} | То же для ответов; данные пользователя из диалога считаются источником |`,
+  `| Повтор между ответами | ${repeats.length ? mean(repeats).toFixed(2) : '—'} | Среднее сходство слов в ответах на «Какие риски?», «Что сделать?», «в 3 предложениях», «кратко». Ближе к 0 — ответы различаются |`,
+  `| Время | лента ${(mean(okFeeds.map((f) => f.run.ms)) / 1000).toFixed(0)} с, вопрос ${(mean(answered.map((q) => q.run.ms)) / 1000).toFixed(0)} с | Среднее на запуск |`,
+  `| Стоимость | лента ${mean(okFeeds.map((f) => f.run.cost)).toFixed(2)} ₽, вопрос ${mean(answered.map((q) => q.run.cost)).toFixed(2)} ₽, всего ${allCost.toFixed(2)} ₽ | Среднее на запуск |`,
+  '',
+  '## Лента',
+  '',
+  '| Компания | Опубликовано | Пропущено | Цитат отклонено | Числа без источника | Время, с | ₽ |',
+  '| --- | --- | --- | --- | --- | --- | --- |',
+  ...feeds.map((f) =>
+    f.run.error
+      ? `| ${f.companyId} | ❌ ${cell(f.run.error)} | | | | | |`
+      : `| ${f.companyId} | ${f.published}/${f.requested} | ${f.skipped} | ${f.quotesRejected} | ${f.numbers.join(', ') || '—'} | ${(f.run.ms / 1000).toFixed(0)} | ${f.run.cost.toFixed(2)} |`,
+  ),
+  '',
+  '## Вопросы',
+  '',
+  '| Компания | Вопрос | Форма | Проверка | Числа без источника | Ответ |',
+  '| --- | --- | --- | --- | --- | --- |',
+  ...questions.map(
+    (q) =>
+      `| ${q.companyId} | ${cell(q.question)} | ${q.ok ? '✅' : '❌'} | ${cell(q.detail)} | ${q.numbers.join(', ') || '—'} | ${cell([q.answer, q.clarification && `Уточнение: ${q.clarification}`].filter(Boolean).join('\n'))} |`,
+  ),
+  '',
+].join('\n')
+
+const outDir = new URL('../../results/', import.meta.url)
+await mkdir(outDir, { recursive: true })
+await writeFile(new URL(`eval-answers-${date}.md`, outDir), report)
+console.log(`\nВсего ${allCost.toFixed(2)} ₽. Отчет: results/eval-answers-${date}.md`)

@@ -33,6 +33,7 @@ const DAY = 86_400_000
 const MAX_AGE_DAYS = 90
 const FRESHNESS_DAYS = 14
 const MIN_SHARE = 0.1
+const MAX_REASONS = 3
 const DUPLICATE_SIMILARITY = 0.5
 const MATERIALITY = [0, 0.5, 0.8, 1] as const
 const PERSPECTIVE_TOPICS: Record<Perspective, Topic[]> = {
@@ -144,10 +145,13 @@ export function rankNewsForCompany(ctx: DataContext, tags: NewsTags, companyId: 
       relevance: {
         score: round(score),
         rank: 0,
-        reasons: [...new Set(matched.map((e) => e.featureId))],
+        reasons: [...new Set([...matched].sort((a, b) => b.weight - a.weight).map((e) => e.featureId))].slice(0, MAX_REASONS),
         version: ML_RANKING_VERSION,
         components: { companyFit: round(companyFit), perspectiveFit, freshness: round(freshness), sourceQuality },
-        explanations: matched.map((e) => ({ featureId: e.featureId, signal: e.signal, weight: round(e.weight) })),
+        explanations: [...matched]
+          .sort((a, b) => b.weight - a.weight)
+          .slice(0, MAX_REASONS)
+          .map((e) => ({ featureId: e.featureId, signal: e.signal, weight: round(e.weight) })),
       },
     })
   }

@@ -1,0 +1,24 @@
+{
+ "feedCompanies": ["U_1", "U_9250", "U_1595", "U_57706", "U_68157", "U_3263"],
+ "questionCompanies": ["U_68157", "U_57706"],
+ "perspective": "cfo",
+ "eventsPerFeed": 3,
+ "questions": [
+  { "id": "risks", "text": "Какие риски?", "expect": { "kind": "free" } },
+  { "id": "actions", "text": "Что сделать?", "expect": { "kind": "free" } },
+  { "id": "three_sentences", "text": "Расскажи в 3 предложениях", "expect": { "kind": "sentences", "count": 3 } },
+  { "id": "list", "text": "Назови 3 риска списком", "expect": { "kind": "list", "count": 3 } },
+  { "id": "brief", "text": "Расскажи кратко", "expect": { "kind": "brief" } },
+  { "id": "greeting", "text": "Привет!", "expect": { "kind": "greeting" } },
+  { "id": "missing_data", "text": "Насколько вырастут наши расходы по кредитам?", "expect": { "kind": "clarification" } },
+  {
+   "id": "user_data",
+   "text": "Кредиты 3 млрд, ставка ключевая + 3%",
+   "conversation": [
+    { "author": "user", "text": "Насколько вырастут наши расходы по кредитам?" },
+    { "author": "assistant", "text": "Без данных о долге оценить нельзя. Какой у компании объем кредитов и по какой ставке?" }
+   ],
+   "expect": { "kind": "no_clarification" }
+  }
+ ]
+}

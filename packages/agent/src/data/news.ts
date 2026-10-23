@@ -28,6 +28,7 @@ export type NewsItem = {
   url: string
   publishedAt: string | null
   fetchedAt: string
+  textSource?: 'rss' | 'article'
 }
 
 const parser = new XMLParser({ ignoreAttributes: true, processEntities: true, trimValues: true })
