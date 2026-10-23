@@ -1,7 +1,13 @@
 import { Link } from '@tanstack/react-router'
 import { roles } from '@/entities/company'
 import { useWorkspace } from '@/entities/workspace'
-import { useRunHistory, useCancelRun, runLabels, runActive } from '@/entities/analysis'
+import {
+  useRunHistory,
+  useCancelRun,
+  runLabels,
+  runActive,
+  runErrorMessage,
+} from '@/entities/analysis'
 import { errorMessage } from '@/shared/lib'
 import { PageHeading } from '@/components/page-heading'
 import { RequestError, RequestSkeleton } from '@/components/request-state'
@@ -84,7 +90,9 @@ export function HistoryPage() {
                       {runLabels[run.status]}
                     </Badge>
                     {run.error && (
-                      <p className="mt-2 max-w-xs text-xs text-destructive">{run.error}</p>
+                      <p className="mt-2 max-w-xs text-xs text-destructive">
+                        {runErrorMessage(run.error)}
+                      </p>
                     )}
                   </TableCell>
                   <TableCell>
