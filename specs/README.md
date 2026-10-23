@@ -1,11 +1,11 @@
 # Спецификации новостной аналитики
 
-Актуализировано 22 октября 2026 по `main` (`ce96f03`), `codex/mock-app-cycle` (`44dcfa1`), коду frontend и `research/agent`. [Исходный PDF](source/brief.pdf) — источник продуктовых требований; приложенный пользователем `rules.md` — основа архитектуры клиента.
+Актуализировано 22 октября 2026 по `main` (`ce96f03`), `codex/mock-app-cycle` (`44dcfa1`), коду frontend и `packages/agent`. [Исходный PDF](source/brief.pdf) — источник продуктовых требований; приложенный пользователем `rules.md` — основа архитектуры клиента.
 
 ## Реализовано
 
 - **Frontend:** все рабочие экраны используют API и PostgreSQL, TanStack Query; вход по HttpOnly сессии без SSO. Browser fixtures и сценарные ответы удалены. [Актуальный контур](12-product-workspace.md).
-- **Research:** CLI-пакет `@alfa/research-agent`: CSV и связи, RSS, OCR PDF, BM25 с русским стеммингом, семь tools и собственный LangGraph-цикл. [Код и инструкции](../research/agent/README.md). Raw/processed данные вне Git. Офлайн-тесты работают на fixtures.
+- **Research:** CLI-пакет `@alfa/agent`: CSV и связи, RSS, OCR PDF, BM25 с русским стеммингом, семь tools и собственный LangGraph-цикл. [Код и инструкции](../packages/agent/README.md). Raw/processed данные вне Git. Офлайн-тесты работают на fixtures.
 - **Backend:** Fastify/Drizzle/PostgreSQL, `/health`, `/ready`. P0 REST/SSE, server-side bearer scope, SQL migrations, BullMQ/Redis worker, global budget reservations, LangGraph adapter и generated frontend types. [Текущее состояние и ограничения](10-backend-implementation.md).
 
 Fixture-проверки не означают выполненный платный live-прогон. Отчеты о моделях — исторические прогоны 21 октября, не новые измерения текущей сессии.
@@ -37,3 +37,5 @@ Fixture-проверки не означают выполненный платн
 7. Платные OCR/comparison не входят в обычные тесты. Бюджет 500 ₽/день и разрешенные модели следуют PDF; действующие API IDs и наблюдения — в [08](08-research-integration.md).
 
 [12-product-workspace.md](12-product-workspace.md) — текущий продуктовый UI, сессии без SSO, реальные данные, локальный OCR и ограничения конфигурации.
+
+[13-accounts-and-packages.md](13-accounts-and-packages.md) — актуальная структура packages, seed 41 968 аккаунтов, регистрация пользователя с компанией, SQL memberships и сессии.

@@ -83,7 +83,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ## Модели, данные и интеграции
 
-Research и backend используют LangChain/LangGraph, CSV/RSS/PDF/OCR, BullMQ/Redis и gateway разрешённых моделей. Источники и исторические результаты — research/agent/README.md. Исходные CSV, PDF банка, OCR/run outputs исключены из Git. SSO и банковские операции не реализованы. Redis 7.4 имеет собственные условия лицензирования (RSALv2/SSPLv1); проверьте их при deployment. BullMQ — MIT.
+Research и backend используют LangChain/LangGraph, CSV/RSS/PDF/OCR, BullMQ/Redis и gateway разрешённых моделей. Источники и исторические результаты — packages/agent/README.md. Исходные CSV, PDF банка, OCR/run outputs исключены из Git. SSO и банковские операции не реализованы. Redis 7.4 имеет собственные условия лицензирования (RSALv2/SSPLv1); проверьте их при deployment. BullMQ — MIT.
 
 Локальный OCR использует установленный Tesseract (Apache-2.0). Языковые файлы rus/eng в этой среде — tessdata_fast / системная поставка; загрузка rus: https://github.com/tesseract-ocr/tessdata_fast (Apache-2.0). Бинарники и обученные данные в репозиторий не включены.
 
