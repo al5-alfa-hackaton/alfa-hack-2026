@@ -1,5 +1,6 @@
 {
  "feedCompanies": ["U_1", "U_9250", "U_1595", "U_57706", "U_68157", "U_3263"],
+ "holdoutCompanies": ["U_61318", "U_44792", "U_51206"],
  "questionCompanies": ["U_68157", "U_57706"],
  "perspective": "cfo",
  "eventsPerFeed": 3,

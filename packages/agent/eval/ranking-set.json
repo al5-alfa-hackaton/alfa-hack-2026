@@ -219,5 +219,163 @@
     ]
    }
   }
- ]
+ ],
+ "roles": {
+  "news_0939469bebfe": [
+   "cfo"
+  ],
+  "news_0b5c57efbfb8": [
+   "cfo"
+  ],
+  "news_101f766f47c0": [
+   "cfo"
+  ],
+  "news_146b6230c088": [
+   "cfo"
+  ],
+  "news_2569362b50db": [
+   "ceo"
+  ],
+  "news_272883a48516": [
+   "ceo"
+  ],
+  "news_2842cc09bbd4": [
+   "ceo"
+  ],
+  "news_2bafbfeaa696": [
+   "cfo"
+  ],
+  "news_2d9da2eff215": [
+   "ceo"
+  ],
+  "news_34ecadbc417d": [
+   "ceo"
+  ],
+  "news_3c70185eeea1": [
+   "cfo",
+   "ceo"
+  ],
+  "news_3e04ea298f6a": [
+   "ceo"
+  ],
+  "news_3e213b7b1c89": [
+   "cfo"
+  ],
+  "news_42be0b4a7c1d": [
+   "ceo"
+  ],
+  "news_44232ff142fd": [
+   "cfo"
+  ],
+  "news_499407727cbe": [
+   "ceo"
+  ],
+  "news_4b0920aaf7d0": [
+   "cfo",
+   "ceo"
+  ],
+  "news_4d6edf53af14": [
+   "cfo"
+  ],
+  "news_566421fd0e48": [
+   "ceo"
+  ],
+  "news_63c1e796a811": [
+   "cfo"
+  ],
+  "news_67ee1e8eb3c6": [
+   "ceo"
+  ],
+  "news_69b3dd0fb2e3": [
+   "ceo"
+  ],
+  "news_70371349a2e6": [
+   "cfo"
+  ],
+  "news_71535c0ef41f": [
+   "ceo"
+  ],
+  "news_765d73df14dd": [
+   "ceo"
+  ],
+  "news_792a89876355": [
+   "ceo"
+  ],
+  "news_7c02ec794b1a": [
+   "ceo"
+  ],
+  "news_8edc62185a4d": [
+   "ceo"
+  ],
+  "news_a4dae1cfb22b": [
+   "ceo"
+  ],
+  "news_a530a083ef61": [
+   "cfo",
+   "ceo"
+  ],
+  "news_afb3c629d0ae": [
+   "cfo"
+  ],
+  "news_b0dc80aabd86": [
+   "cfo"
+  ],
+  "news_b9dc9aa0ed3e": [
+   "cfo",
+   "ceo"
+  ],
+  "news_bb83f9ef1e4c": [
+   "cfo"
+  ],
+  "news_be8fab58fca7": [
+   "ceo"
+  ],
+  "news_c1fbc01da96e": [
+   "ceo"
+  ],
+  "news_c572d14a640c": [
+   "cfo",
+   "ceo"
+  ],
+  "news_c8a765c9b7d9": [
+   "ceo"
+  ],
+  "news_d012f3f96271": [
+   "cfo",
+   "ceo"
+  ],
+  "news_d7f2a3a5dd6c": [
+   "ceo"
+  ],
+  "news_dac9ce22f171": [
+   "ceo"
+  ],
+  "news_e1cad53b1771": [
+   "ceo"
+  ],
+  "news_e45e011c1324": [
+   "cfo"
+  ],
+  "news_eaf98c2dd22d": [
+   "ceo"
+  ],
+  "news_eb5d8730c91c": [
+   "ceo"
+  ],
+  "news_f1202c54ef31": [
+   "ceo"
+  ],
+  "news_f3cae1bd6b4f": [
+   "ceo"
+  ],
+  "news_fd946e16f628": [
+   "ceo"
+  ],
+  "news_fe94f4d8ebd3": [
+   "cfo",
+   "ceo"
+  ]
+ },
+ "rolesNote": "Роль: для какого руководителя новость важна напрямую. Для другой роли оценка снижается на 1.",
+ "purpose": "настройка: на этих компаниях подбирались веса отбора"
 }

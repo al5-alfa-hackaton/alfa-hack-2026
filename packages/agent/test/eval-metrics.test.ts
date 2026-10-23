@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
+  bankAttribution,
   checkForm,
   irrelevantAtK,
   listItems,
+  mentionsBankView,
   ndcgAtK,
   numbersIn,
   overlap,
   precisionAtK,
+  recallAtK,
+  roleGrades,
   sentences,
   unjudged,
   unsupportedNumbers,
@@ -26,6 +30,16 @@ describe('метрики отбора', () => {
     expect(ndcgAtK(['a', 'd', 'b'], labels, 3)).toBeCloseTo(1)
     expect(ndcgAtK(['b', 'd', 'a'], labels, 3)).toBeLessThan(1)
     expect(ndcgAtK(['c', 'x'], labels, 3)).toBe(0)
+  })
+
+  it('recall@k считает долю найденных связанных новостей', () => {
+    expect(recallAtK(['a', 'c'], labels, 2)).toBeCloseTo(1 / 3)
+    expect(recallAtK(['a', 'd', 'b'], labels, 3)).toBe(1)
+    expect(recallAtK(['a'], { x: 0 }, 1)).toBe(0)
+  })
+
+  it('оценка для роли снижается, если новость важна другому руководителю', () => {
+    expect(roleGrades({ a: 2, b: 1 }, { a: ['cfo'], b: ['cfo', 'ceo'] }, 'ceo')).toEqual({ a: 1, b: 1 })
   })
 
   it('неразмеченные новости видны отдельно', () => {
@@ -65,5 +79,19 @@ describe('повторы между ответами', () => {
   it('сходство по словам', () => {
     expect(overlap('Рост ставки повышает расходы', 'Рост ставки повышает расходы')).toBe(1)
     expect(overlap('Рост ставки повышает расходы', 'Спрос на жилье падает')).toBe(0)
+  })
+})
+
+describe('позиция банка в выводах', () => {
+  it('находит упоминание оценки банка', () => {
+    expect(mentionsBankView('Альфа-Банк в материале от 11.09.2026 ждет ставку 14%.')).toBe(true)
+    expect(mentionsBankView('По прогнозу Альфа-Банка ставка сохранится.')).toBe(true)
+    expect(mentionsBankView('У компании кредиты в Альфа-Банке.')).toBe(false)
+    expect(mentionsBankView('Кредиты в Альфа-Банке стоит оценивать по ставке.')).toBe(false)
+  })
+
+  it('упоминание без проверенной цитаты банка считается ошибкой', () => {
+    expect(bankAttribution(['Альфа-Банк ожидает снижения ставки.'], 0)).toEqual({ mentions: 1, unsupported: 1 })
+    expect(bankAttribution(['Альфа-Банк ожидает снижения ставки.'], 1)).toEqual({ mentions: 1, unsupported: 0 })
   })
 })

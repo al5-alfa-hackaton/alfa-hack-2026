@@ -5,7 +5,7 @@ import { buildAgentGraph, textOf } from '../agent/graph.js'
 import { buildTaskPrompt, clarificationAllowed, PROMPT_VERSION } from '../agent/prompts.js'
 import { dataPaths, loadConfig } from '../config.js'
 import { loadDataContext } from '../data/context.js'
-import { checkForm, mean, overlap, unsupportedNumbers, type FormExpectation } from '../eval/metrics.js'
+import { bankAttribution, checkForm, mean, overlap, unsupportedNumbers, type FormExpectation } from '../eval/metrics.js'
 import { FEATURE_IDS } from '../features.js'
 import { costOf, createChatModel } from '../llm.js'
 import { loadNewsTags } from '../news/tagging.js'
@@ -14,6 +14,7 @@ import { rankNewsForCompany, type Perspective, type RankedNewsItem } from '../ne
 type Turn = { author: string; text: string }
 type Battery = {
   feedCompanies: string[]
+  holdoutCompanies: string[]
   questionCompanies: string[]
   perspective: Perspective
   eventsPerFeed: number
@@ -75,9 +76,18 @@ const generated = (e: Draft['events'][number]) => [
   ...e.actions,
 ]
 const count = (issues: string[], re: RegExp) => issues.filter((i) => re.test(i)).length
+const bankQuotes = (e: Draft['events'][number]) => e.claims.filter((c) => c.kind === 'bank_position').length
+const attribution = (events: Draft['events'], issues: string[]) => {
+  const perEvent = events.map((e) => bankAttribution(generated(e), bankQuotes(e)))
+  const wrongSource = count(issues, /не на материал банка/)
+  return { mentions: perEvent.reduce((s, a) => s + a.mentions, 0) + wrongSource, unsupported: perEvent.reduce((s, a) => s + a.unsupported, 0) + wrongSource }
+}
+const runsDir = `${dataPaths(config).processed}/runs/eval-answers-${date}`
+await mkdir(runsDir, { recursive: true })
 
 type FeedRow = {
   companyId: string
+  holdout: boolean
   requested: number
   published: number
   skipped: number
@@ -86,11 +96,13 @@ type FeedRow = {
   featuresDropped: number
   numbers: string[]
   filled: number
+  bank: { mentions: number; unsupported: number }
+  withBank: number
   run: Run
   cards: Draft['events']
 }
 const feeds: FeedRow[] = []
-for (const companyId of battery.feedCompanies) {
+for (const companyId of [...battery.feedCompanies, ...battery.holdoutCompanies]) {
   const ranked = rankNewsForCompany(ctx, tags, companyId, { perspective: battery.perspective, asOf, limit: battery.eventsPerFeed })
   const r = await run(companyId, ranked, {
     mode: 'feed',
@@ -101,6 +113,7 @@ for (const companyId of battery.feedCompanies) {
   const published = r.draft.events.filter((e) => e.claims.some((c) => c.kind === 'fact'))
   const row: FeedRow = {
     companyId,
+    holdout: battery.holdoutCompanies.includes(companyId),
     requested: ranked.length,
     published: published.length,
     skipped: r.draft.skipped.length,
@@ -109,14 +122,17 @@ for (const companyId of battery.feedCompanies) {
     featuresDropped: count(r.draft.issues, /неизвестны и убраны/),
     numbers: unsupportedNumbers(published.flatMap(generated).join('\n'), r.sources),
     filled: published.filter((e) => e.summary && e.risks.length + e.opportunities.length > 0 && e.actions.length > 0).length,
+    bank: attribution(published, r.draft.issues),
+    withBank: published.filter((e) => bankQuotes(e) > 0).length,
     run: r,
     cards: published,
   }
   feeds.push(row)
+  await writeFile(`${runsDir}/feed_${companyId}.json`, JSON.stringify({ draft: r.draft, error: r.error }, null, 2))
   console.log(`лента ${companyId}: ${r.error ?? `${row.published}/${row.requested} опубликовано, пропущено ${row.skipped}, цитат отклонено ${row.quotesRejected}, чисел без источника ${row.numbers.length}, ${(r.ms / 1000).toFixed(0)} с, ${r.cost.toFixed(2)} ₽`}`)
 }
 
-type QuestionRow = { companyId: string; id: string; question: string; ok: boolean; detail: string; answer: string; clarification: string | null; numbers: string[]; run: Run }
+type QuestionRow = { companyId: string; id: string; question: string; ok: boolean; detail: string; answer: string; clarification: string | null; numbers: string[]; bank: { mentions: number; unsupported: number }; run: Run }
 const questions: QuestionRow[] = []
 for (const companyId of battery.questionCompanies) {
   const feed = feeds.find((f) => f.companyId === companyId)
@@ -155,15 +171,18 @@ for (const companyId of battery.questionCompanies) {
     const answer = (event?.answer ?? '').replace(clarification ?? '\u0000', '').trim()
     const form = r.error ? { ok: false, detail: r.error } : checkForm({ answer, clarification, claims: event?.claims.filter((c) => c.kind !== 'ai_inference').length ?? 0 }, q.expect)
     const sources = [...r.sources, q.text, ...conversation.map((t) => t.text)]
-    const row: QuestionRow = { companyId, id: q.id, question: q.text, ...form, answer, clarification, numbers: unsupportedNumbers(answer, sources), run: r }
+    const bank = event ? bankAttribution([answer], bankQuotes(event) + context.claims.filter((c) => c.kind === 'bank_position').length) : { mentions: 0, unsupported: 0 }
+    const row: QuestionRow = { companyId, id: q.id, question: q.text, ...form, answer, clarification, numbers: unsupportedNumbers(answer, sources), bank, run: r }
     questions.push(row)
+    await writeFile(`${runsDir}/question_${companyId}_${q.id}.json`, JSON.stringify({ question: q.text, draft: r.draft, error: r.error }, null, 2))
     console.log(`вопрос ${companyId} «${q.text}»: ${form.ok ? 'ок' : 'не ок'} — ${form.detail}, ${(r.ms / 1000).toFixed(0)} с, ${r.cost.toFixed(2)} ₽`)
   }
 }
 
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : '—')
 const sum = <T,>(rows: T[], f: (r: T) => number) => rows.reduce((s, r) => s + f(r), 0)
-const okFeeds = feeds.filter((f) => !f.run.error)
+const okFeeds = feeds.filter((f) => !f.run.error && !f.holdout)
+const okHoldout = feeds.filter((f) => !f.run.error && f.holdout)
 const answered = questions.filter((q) => !q.run.error)
 const repeats = battery.questionCompanies.flatMap((companyId) => {
   const own = answered.filter((q) => q.companyId === companyId && ['risks', 'actions', 'three_sentences', 'brief'].includes(q.id))
@@ -185,6 +204,8 @@ const report = [
   `| Карточек опубликовано | ${sum(okFeeds, (f) => f.published)} из ${sum(okFeeds, (f) => f.requested)} (${pct(sum(okFeeds, (f) => f.published), sum(okFeeds, (f) => f.requested))}), пропущено агентом ${sum(okFeeds, (f) => f.skipped)} | Сколько отобранных событий дошло до пользователя. Пропуск — агент счел событие не связанным с компанией |`,
   `| Точность цитат | ${pct(sum(okFeeds, (f) => f.facts), sum(okFeeds, (f) => f.facts + f.quotesRejected))} (отклонено ${sum(okFeeds, (f) => f.quotesRejected)}) | Доля фактов и позиций банка, найденных в документе дословно |`,
   `| Заполненность карточки | ${pct(sum(okFeeds, (f) => f.filled), sum(okFeeds, (f) => f.published))} | Есть главное, хотя бы один риск или возможность и шаг |`,
+  `| Вывод ИИ выдан за позицию банка | ${sum(okFeeds, (f) => f.bank.unsupported) + sum(answered, (q) => q.bank.unsupported)} из ${sum(okFeeds, (f) => f.bank.mentions) + sum(answered, (q) => q.bank.mentions)} упоминаний | Текст ссылается на оценку Альфа-Банка, а дословной цитаты материала банка у события нет, или позиция банка ссылается не на материал банка. Цель — 0 |`,
+  `| Карточек с позицией банка | ${pct(sum(okFeeds, (f) => f.withBank), sum(okFeeds, (f) => f.published))} | Доля опубликованных карточек с проверенной цитатой материала банка |`,
   `| Неизвестные признаки | ${sum(okFeeds, (f) => f.featuresDropped)} | Ссылки на признаки компании не из \`FEATURE_IDS\` |`,
   `| Числа без источника (лента) | ${sum(okFeeds, (f) => f.numbers.length)} | Числа в выводах, которых нет ни в новостях, ни в ответах инструментов. Эвристика: показывает кандидатов на выдумку |`,
   `| Форма ответа на вопрос | ${answered.filter((q) => q.ok).length} из ${questions.length} | N предложений, список, «кратко», приветствие, уточнение при нехватке данных и без повторного уточнения |`,
@@ -193,14 +214,28 @@ const report = [
   `| Время | лента ${(mean(okFeeds.map((f) => f.run.ms)) / 1000).toFixed(0)} с, вопрос ${(mean(answered.map((q) => q.run.ms)) / 1000).toFixed(0)} с | Среднее на запуск |`,
   `| Стоимость | лента ${mean(okFeeds.map((f) => f.run.cost)).toFixed(2)} ₽, вопрос ${mean(answered.map((q) => q.run.cost)).toFixed(2)} ₽, всего ${allCost.toFixed(2)} ₽ | Среднее на запуск |`,
   '',
+  '## Отложенная проверка',
+  '',
+  `Компании ${battery.holdoutCompanies.join(', ')} — отрасли, которые не использовались при настройке промптов и отбора.`,
+  '',
+  '| Выборка | Опубликовано | Точность цитат | Заполненность | Числа без источника | Вывод ИИ выдан за позицию банка |',
+  '| --- | --- | --- | --- | --- | --- |',
+  ...[
+    ['Настройка', okFeeds],
+    ['Отложенная', okHoldout],
+  ].map(
+    ([name, rows]) =>
+      `| ${name as string} | ${pct(sum(rows as FeedRow[], (f) => f.published), sum(rows as FeedRow[], (f) => f.requested))} | ${pct(sum(rows as FeedRow[], (f) => f.facts), sum(rows as FeedRow[], (f) => f.facts + f.quotesRejected))} | ${pct(sum(rows as FeedRow[], (f) => f.filled), sum(rows as FeedRow[], (f) => f.published))} | ${sum(rows as FeedRow[], (f) => f.numbers.length)} | ${sum(rows as FeedRow[], (f) => f.bank.unsupported)} |`,
+  ),
+  '',
   '## Лента',
   '',
-  '| Компания | Опубликовано | Пропущено | Цитат отклонено | Числа без источника | Время, с | ₽ |',
-  '| --- | --- | --- | --- | --- | --- | --- |',
+  '| Компания | Опубликовано | Пропущено | Цитат отклонено | Числа без источника | Позиция банка без цитаты | Время, с | ₽ |',
+  '| --- | --- | --- | --- | --- | --- | --- | --- |',
   ...feeds.map((f) =>
     f.run.error
-      ? `| ${f.companyId} | ❌ ${cell(f.run.error)} | | | | | |`
-      : `| ${f.companyId} | ${f.published}/${f.requested} | ${f.skipped} | ${f.quotesRejected} | ${f.numbers.join(', ') || '—'} | ${(f.run.ms / 1000).toFixed(0)} | ${f.run.cost.toFixed(2)} |`,
+      ? `| ${f.companyId}${f.holdout ? ' (отл.)' : ''} | ❌ ${cell(f.run.error)} | | | | | | |`
+      : `| ${f.companyId}${f.holdout ? ' (отл.)' : ''} | ${f.published}/${f.requested} | ${f.skipped} | ${f.quotesRejected} | ${f.numbers.join(', ') || '—'} | ${f.bank.unsupported} из ${f.bank.mentions} | ${(f.run.ms / 1000).toFixed(0)} | ${f.run.cost.toFixed(2)} |`,
   ),
   '',
   '## Вопросы',
@@ -217,4 +252,4 @@ const report = [
 const outDir = new URL('../../results/', import.meta.url)
 await mkdir(outDir, { recursive: true })
 await writeFile(new URL(`eval-answers-${date}.md`, outDir), report)
-console.log(`\nВсего ${allCost.toFixed(2)} ₽. Отчет: results/eval-answers-${date}.md`)
+console.log(`\nВсего ${allCost.toFixed(2)} ₽. Отчет: results/eval-answers-${date}.md, черновики: ${runsDir}`)

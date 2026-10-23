@@ -1,0 +1,421 @@
+{
+ "asOf": "2026-10-23T12:00:00.000Z",
+ "purpose": "отложенная проверка: компании и отрасли, которые не использовались при настройке отбора и промптов",
+ "scale": {
+  "2": "прямо влияет на деньги компании: ее отрасль, ключевые продукты, сырье",
+  "1": "косвенно: макрособытия при наличии долга, курс при внешней торговле, смежные отрасли и группа",
+  "0": "не связано с компанией"
+ },
+ "labeledBy": "ассистент по профилю компании и тексту новости, 23.10.2026; требует выборочной проверки командой",
+ "baseline": {
+  "version": "rules-2026-10-22.2",
+  "description": "правила rankNews из projects/backend, топ-5 на дату asOf"
+ },
+ "companies": [
+  {
+   "id": "U_177693",
+   "industry": "Выращивание овощей, бахчевых, корнеплодных и клубнеплодных культур, грибов и трюфелей",
+   "labels": {
+    "news_f3cae1bd6b4f": 0,
+    "news_e485dcac720a": 1,
+    "news_f1202c54ef31": 0,
+    "news_1f43ffb8a93b": 0,
+    "news_35ceb85ab9d8": 0,
+    "news_05b4eaccbaca": 0,
+    "news_67ee1e8eb3c6": 0,
+    "news_4de9f1bbf8e5": 0,
+    "news_eb5d8730c91c": 2,
+    "news_f19832474ccb": 2,
+    "news_2569362b50db": 1,
+    "news_095e76c4716e": 2,
+    "news_e1cad53b1771": 1,
+    "news_a4dae1cfb22b": 0,
+    "news_a433052b1485": 1
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_f3cae1bd6b4f",
+     "news_e485dcac720a",
+     "news_f1202c54ef31",
+     "news_1f43ffb8a93b",
+     "news_35ceb85ab9d8"
+    ],
+    "ceo": [
+     "news_f1202c54ef31",
+     "news_1f43ffb8a93b",
+     "news_05b4eaccbaca",
+     "news_67ee1e8eb3c6",
+     "news_4de9f1bbf8e5"
+    ]
+   }
+  },
+  {
+   "id": "U_204078",
+   "industry": "Производство сыра и сырных продуктов",
+   "labels": {
+    "news_7f79812a9676": 0,
+    "news_63c1e796a811": 0,
+    "news_fe94f4d8ebd3": 1,
+    "news_f3cae1bd6b4f": 0,
+    "news_b987cef957dd": 0,
+    "news_2569362b50db": 0,
+    "news_f1202c54ef31": 0,
+    "news_0939469bebfe": 0,
+    "news_30230503ebe4": 0,
+    "news_2381e70f4520": 2,
+    "news_60c35d5c94e4": 1,
+    "news_6d7f7c718c0a": 0,
+    "news_8c7874f459de": 1
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_7f79812a9676",
+     "news_63c1e796a811",
+     "news_fe94f4d8ebd3",
+     "news_f3cae1bd6b4f",
+     "news_b987cef957dd"
+    ],
+    "ceo": [
+     "news_7f79812a9676",
+     "news_fe94f4d8ebd3",
+     "news_2569362b50db",
+     "news_f1202c54ef31",
+     "news_0939469bebfe"
+    ]
+   }
+  },
+  {
+   "id": "U_61318",
+   "industry": "Производство профилей с помощью холодной штамповки или гибки",
+   "labels": {
+    "news_4d6edf53af14": 2,
+    "news_63c1e796a811": 0,
+    "news_fe94f4d8ebd3": 1,
+    "news_d012f3f96271": 1,
+    "news_afb3c629d0ae": 0,
+    "news_bb83f9ef1e4c": 2,
+    "news_69b3dd0fb2e3": 2,
+    "news_c1fbc01da96e": 1,
+    "news_88f23e4deb5e": 1,
+    "news_9250d678a9bb": 0,
+    "news_4b6bf645945d": 1
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_4d6edf53af14",
+     "news_63c1e796a811",
+     "news_fe94f4d8ebd3",
+     "news_d012f3f96271",
+     "news_afb3c629d0ae"
+    ],
+    "ceo": [
+     "news_4d6edf53af14",
+     "news_fe94f4d8ebd3",
+     "news_d012f3f96271",
+     "news_afb3c629d0ae",
+     "news_bb83f9ef1e4c"
+    ]
+   }
+  },
+  {
+   "id": "U_60596",
+   "industry": "Производство прочих приборов, датчиков, аппаратуры и инструментов для измерения, контроля и испытаний",
+   "labels": {
+    "news_4d6edf53af14": 2,
+    "news_63c1e796a811": 0,
+    "news_a530a083ef61": 1,
+    "news_b9dc9aa0ed3e": 1,
+    "news_fe94f4d8ebd3": 1,
+    "news_d012f3f96271": 1,
+    "news_afb3c629d0ae": 0,
+    "news_146b6230c088": 2,
+    "news_499407727cbe": 0,
+    "news_eb5d8730c91c": 0,
+    "news_f19832474ccb": 0,
+    "news_d4f6a1819a50": 0,
+    "news_34ecadbc417d": 0
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_4d6edf53af14",
+     "news_63c1e796a811",
+     "news_a530a083ef61",
+     "news_b9dc9aa0ed3e",
+     "news_fe94f4d8ebd3"
+    ],
+    "ceo": [
+     "news_4d6edf53af14",
+     "news_fe94f4d8ebd3",
+     "news_d012f3f96271",
+     "news_afb3c629d0ae",
+     "news_146b6230c088"
+    ]
+   }
+  },
+  {
+   "id": "U_44792",
+   "industry": "Разработка компьютерного программного обеспечения",
+   "labels": {
+    "news_a530a083ef61": 1,
+    "news_b9dc9aa0ed3e": 1,
+    "news_d012f3f96271": 1,
+    "news_653ddc57146c": 1,
+    "news_be8fab58fca7": 0,
+    "news_3e23a58372ad": 0,
+    "news_d85f0df08ab1": 0,
+    "news_146b6230c088": 1,
+    "news_4d3b4781092d": 1,
+    "news_d4f6a1819a50": 2,
+    "news_18d8f1ccce60": 2,
+    "news_dfd71bc6b39f": 2,
+    "news_be1a7c9a9462": 0,
+    "news_a9ea94f81759": 1,
+    "news_697543b1b3dc": 0
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_a530a083ef61",
+     "news_b9dc9aa0ed3e",
+     "news_d012f3f96271",
+     "news_653ddc57146c",
+     "news_be8fab58fca7"
+    ],
+    "ceo": [
+     "news_3e23a58372ad",
+     "news_d85f0df08ab1",
+     "news_d012f3f96271",
+     "news_146b6230c088",
+     "news_4d3b4781092d"
+    ]
+   }
+  },
+  {
+   "id": "U_51206",
+   "industry": "Деятельность гостиниц и прочих мест для временного проживания",
+   "labels": {
+    "news_f3cae1bd6b4f": 0,
+    "news_e485dcac720a": 0,
+    "news_f1202c54ef31": 0,
+    "news_1f43ffb8a93b": 0,
+    "news_35ceb85ab9d8": 0,
+    "news_ed3625b05ab1": 0,
+    "news_dd9d68748aff": 0,
+    "news_2842cc09bbd4": 0,
+    "news_38ecb62ec1a9": 0,
+    "news_f08e4c57a405": 2,
+    "news_a5e62da14f81": 2,
+    "news_dcbe52075774": 0,
+    "news_0e1ca2930358": 0,
+    "news_2f64023fac00": 1,
+    "news_8f4718242b65": 1,
+    "news_046c6494817e": 1
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_f3cae1bd6b4f",
+     "news_e485dcac720a",
+     "news_f1202c54ef31",
+     "news_1f43ffb8a93b",
+     "news_35ceb85ab9d8"
+    ],
+    "ceo": [
+     "news_ed3625b05ab1",
+     "news_dd9d68748aff",
+     "news_f1202c54ef31",
+     "news_2842cc09bbd4",
+     "news_38ecb62ec1a9"
+    ]
+   }
+  }
+ ],
+ "roles": {
+  "news_046c6494817e": [
+   "ceo"
+  ],
+  "news_05b4eaccbaca": [
+   "ceo"
+  ],
+  "news_0939469bebfe": [
+   "cfo"
+  ],
+  "news_095e76c4716e": [
+   "ceo"
+  ],
+  "news_0e1ca2930358": [
+   "ceo"
+  ],
+  "news_146b6230c088": [
+   "cfo"
+  ],
+  "news_18d8f1ccce60": [
+   "ceo"
+  ],
+  "news_1f43ffb8a93b": [
+   "ceo"
+  ],
+  "news_2381e70f4520": [
+   "ceo"
+  ],
+  "news_2569362b50db": [
+   "ceo"
+  ],
+  "news_2842cc09bbd4": [
+   "ceo"
+  ],
+  "news_2f64023fac00": [
+   "ceo"
+  ],
+  "news_30230503ebe4": [
+   "cfo"
+  ],
+  "news_34ecadbc417d": [
+   "ceo"
+  ],
+  "news_35ceb85ab9d8": [
+   "ceo"
+  ],
+  "news_38ecb62ec1a9": [
+   "ceo"
+  ],
+  "news_3e23a58372ad": [
+   "ceo"
+  ],
+  "news_499407727cbe": [
+   "ceo"
+  ],
+  "news_4b6bf645945d": [
+   "ceo"
+  ],
+  "news_4d3b4781092d": [
+   "cfo"
+  ],
+  "news_4d6edf53af14": [
+   "cfo"
+  ],
+  "news_4de9f1bbf8e5": [
+   "cfo"
+  ],
+  "news_60c35d5c94e4": [
+   "ceo"
+  ],
+  "news_63c1e796a811": [
+   "cfo"
+  ],
+  "news_653ddc57146c": [
+   "cfo"
+  ],
+  "news_67ee1e8eb3c6": [
+   "ceo"
+  ],
+  "news_697543b1b3dc": [
+   "ceo"
+  ],
+  "news_69b3dd0fb2e3": [
+   "ceo"
+  ],
+  "news_6d7f7c718c0a": [
+   "ceo"
+  ],
+  "news_7f79812a9676": [
+   "ceo"
+  ],
+  "news_88f23e4deb5e": [
+   "ceo"
+  ],
+  "news_8c7874f459de": [
+   "ceo"
+  ],
+  "news_8f4718242b65": [
+   "ceo"
+  ],
+  "news_9250d678a9bb": [
+   "cfo"
+  ],
+  "news_a433052b1485": [
+   "ceo"
+  ],
+  "news_a4dae1cfb22b": [
+   "ceo"
+  ],
+  "news_a530a083ef61": [
+   "cfo",
+   "ceo"
+  ],
+  "news_a5e62da14f81": [
+   "ceo"
+  ],
+  "news_a9ea94f81759": [
+   "ceo"
+  ],
+  "news_afb3c629d0ae": [
+   "cfo"
+  ],
+  "news_b987cef957dd": [
+   "ceo"
+  ],
+  "news_b9dc9aa0ed3e": [
+   "cfo",
+   "ceo"
+  ],
+  "news_bb83f9ef1e4c": [
+   "cfo"
+  ],
+  "news_be1a7c9a9462": [
+   "cfo"
+  ],
+  "news_be8fab58fca7": [
+   "ceo"
+  ],
+  "news_c1fbc01da96e": [
+   "ceo"
+  ],
+  "news_d012f3f96271": [
+   "cfo",
+   "ceo"
+  ],
+  "news_d4f6a1819a50": [
+   "ceo"
+  ],
+  "news_d85f0df08ab1": [
+   "ceo"
+  ],
+  "news_dcbe52075774": [
+   "ceo"
+  ],
+  "news_dd9d68748aff": [
+   "ceo"
+  ],
+  "news_dfd71bc6b39f": [
+   "ceo"
+  ],
+  "news_e1cad53b1771": [
+   "ceo"
+  ],
+  "news_e485dcac720a": [
+   "ceo"
+  ],
+  "news_eb5d8730c91c": [
+   "ceo"
+  ],
+  "news_ed3625b05ab1": [
+   "ceo"
+  ],
+  "news_f08e4c57a405": [
+   "ceo"
+  ],
+  "news_f1202c54ef31": [
+   "ceo"
+  ],
+  "news_f19832474ccb": [
+   "ceo"
+  ],
+  "news_f3cae1bd6b4f": [
+   "ceo"
+  ],
+  "news_fe94f4d8ebd3": [
+   "cfo",
+   "ceo"
+  ]
+ },
+ "rolesNote": "Роль: для какого руководителя новость важна напрямую. Для другой роли оценка снижается на 1."
+}

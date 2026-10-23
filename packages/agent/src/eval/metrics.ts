@@ -8,6 +8,16 @@ export function precisionAtK(list: string[], labels: Grades, k: number, minGrade
   return top.filter((id) => gradeOf(labels, id) >= minGrade).length / top.length
 }
 
+export function recallAtK(list: string[], labels: Grades, k: number, minGrade = 1): number {
+  const relevant = Object.values(labels).filter((g) => g >= minGrade).length
+  if (!relevant) return 0
+  return list.slice(0, k).filter((id) => gradeOf(labels, id) >= minGrade).length / relevant
+}
+
+export function roleGrades(labels: Grades, roles: Record<string, string[]>, role: string): Grades {
+  return Object.fromEntries(Object.entries(labels).map(([id, g]) => [id, roles[id]?.includes(role) ? g : Math.max(0, g - 1)]))
+}
+
 export function irrelevantAtK(list: string[], labels: Grades, k: number): number {
   const top = list.slice(0, k)
   if (!top.length) return 0
@@ -111,4 +121,15 @@ export function overlap(a: string, b: string): number {
   const y = words(b)
   const common = [...x].filter((w) => y.has(w)).length
   return x.size + y.size - common ? common / (x.size + y.size - common) : 0
+}
+
+const BANK_VIEW = /(?:Альфа-Банк(?![а-яё])|позици\S* банка|аналитик\S* банка)[^.?!\n]{0,60}?(?:ожида|прогноз|счита|оценива|полага|допуска|рекоменд|в материале)|(?:по (?:оценке|прогнозу|мнению|данным)|в материал\S*)\s+Альфа-Банка/i
+
+export function mentionsBankView(text: string): boolean {
+  return BANK_VIEW.test(text)
+}
+
+export function bankAttribution(texts: string[], verifiedBankQuotes: number): { mentions: number; unsupported: number } {
+  const mentions = texts.filter(mentionsBankView).length
+  return { mentions, unsupported: verifiedBankQuotes ? 0 : mentions }
 }
