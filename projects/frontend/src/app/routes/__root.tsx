@@ -22,7 +22,10 @@ export const Route = createRootRoute({
         content: 'События рынка, источники и аналитика в контексте вашей компании.',
       },
     ],
-    links: [{ rel: 'stylesheet', href: styles }],
+    links: [
+      { rel: 'stylesheet', href: styles },
+      { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+    ],
   }),
   shellComponent: RootDocument,
   component: () => (

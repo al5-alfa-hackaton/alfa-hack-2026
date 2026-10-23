@@ -75,7 +75,8 @@ export function NewsFilters({
             ref={inputRef}
             aria-label="Поиск по событиям"
             type="search"
-            placeholder="Найти событие"
+            placeholder="По загруженным событиям"
+            title="Поиск по уже загруженным событиям"
             value={query}
             onChange={(e) => onQuery(e.target.value)}
             className="h-9 pl-9"
@@ -251,6 +252,7 @@ export function NoNews({
 }) {
   return (
     <EmptyState
+      className={saved ? 'w-full flex-1' : undefined}
       title={
         saved && !query ? 'Сохраните то, к чему хотите вернуться' : 'По этому запросу ничего нет'
       }

@@ -96,3 +96,26 @@ Manrope распространяется по SIL Open Font License 1.1; fontsou
 ## Дизайн-руководства
 
 Использованы Taste Skill (https://github.com/Leonxlnx/taste-skill) и Better Web UI (https://github.com/aladicf/better-web-ui). Их исходники не включены в приложение. Better Web UI имеет собственную лицензию с дополнительными ограничениями и не обозначается как plain MIT. Ссылки и версии руководств зафиксированы в specs/09-ui-review.md; проектные заметки — .better-web-ui.md.
+
+
+## prompt-kit chat components
+
+Adapted chat-container and scroll-button from https://github.com/ibelick/prompt-kit.
+
+MIT License
+
+Copyright (c) 2025 Julien Thibeaut
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. app/page.tsx
+
+
+## News loading animation
+
+News by Priyanshu Rijhwani; illustration credited to Freepik by the author.
+Source: https://lottiefiles.com/free-animation/news-CSx8aXz0pk
+License: Lottie Simple License, https://lottiefiles.com/page/license
+Local adaptation: colored accents changed to Alfa red; JSON extracted from dotLottie.
