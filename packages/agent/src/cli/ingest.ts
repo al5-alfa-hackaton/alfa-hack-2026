@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dataPaths, loadConfig } from '../config.js'
 import { exportPageImages, extractBankCorpus } from '../data/bank.js'
 import { fetchFeed, mergeNews, NEWS_SOURCES, type NewsItem } from '../data/news.js'
+import { trimArticleText } from '../news/fulltext.js'
 
 const args = new Set(process.argv.slice(2))
 const all = !args.has('--bank') && !args.has('--news')
@@ -27,7 +28,7 @@ if (all || args.has('--news')) {
   for (const source of NEWS_SOURCES) {
     try {
       const items = await fetchFeed(source, AbortSignal.timeout(20000))
-      fetched.push(...items)
+      fetched.push(...items.map((n) => ({ ...n, text: trimArticleText(n.text) })))
       console.log(`news  ${source.id}: ${items.length}`)
     } catch (error) {
       console.warn(`news  ${source.id}: ошибка — ${(error as Error).message}`)

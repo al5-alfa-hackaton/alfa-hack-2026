@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractArticleText, isAllowedArticleUrl } from '../src/news/fulltext.js'
+import { extractArticleText, isAllowedArticleUrl, trimArticleText } from '../src/news/fulltext.js'
 
 describe('article full text', () => {
   it('prefers articleBody from JSON-LD, including @graph', () => {
@@ -26,10 +26,31 @@ describe('article full text', () => {
 
   it('allows only https pages of the configured news domains', () => {
     expect(isAllowedArticleUrl(new URL('https://www.kommersant.ru/doc/1'))).toBe(true)
-    expect(isAllowedArticleUrl(new URL('https://ria.ru/20261020/x.html'))).toBe(true)
-    expect(isAllowedArticleUrl(new URL('http://ria.ru/x'))).toBe(false)
-    expect(isAllowedArticleUrl(new URL('https://evil-ria.ru/x'))).toBe(false)
-    expect(isAllowedArticleUrl(new URL('https://ria.ru.evil.com/x'))).toBe(false)
+    expect(isAllowedArticleUrl(new URL('https://www.vedomosti.ru/economics/news/x'))).toBe(true)
+    expect(isAllowedArticleUrl(new URL('http://www.vedomosti.ru/x'))).toBe(false)
+    expect(isAllowedArticleUrl(new URL('https://evil-vedomosti.ru/x'))).toBe(false)
+    expect(isAllowedArticleUrl(new URL('https://vedomosti.ru.evil.com/x'))).toBe(false)
+    expect(isAllowedArticleUrl(new URL('https://ria.ru/20261020/x.html'))).toBe(false)
     expect(isAllowedArticleUrl(new URL('https://example.com/x'))).toBe(false)
+  })
+})
+
+describe('хвосты статей', () => {
+  it('убирает ссылки на другие материалы, рекламу и блоки «по теме»', () => {
+    const text = [
+      'Ставка сохранена на уровне 14%. Подробнее — в материале «Ъ» «Ословский торг».',
+      'Рынок может удвоиться.',
+      'Подробности — в материале «Размах на рубль» .',
+      'Подберите вклад под максимальный % на Банки.ру',
+      'Подберите вклад под максимальный % на Банки.ру',
+      'Открывайте вклады разных банков онлайн на Банки.ру',
+      'Читать по теме Россиянам посоветовали зафиксировать доходность Лента новостей 22.10.2026',
+    ].join('\n')
+    expect(trimArticleText(text)).toBe('Ставка сохранена на уровне 14%.\nРынок может удвоиться.')
+  })
+
+  it('не трогает обычный текст', () => {
+    const text = 'Банк России сохранил ставку.\nАналитики ждут снижения в 2027 году; подробнее об этом рассказал глава ЦБ.'
+    expect(trimArticleText(text)).toBe(text)
   })
 })

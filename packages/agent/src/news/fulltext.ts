@@ -84,11 +84,44 @@ function fromParagraphs(html: string): string | null {
   return text ? text : null
 }
 
+const TAIL_MARKERS = /(?:Читать по теме|Читайте также|Смотрите также|Новости по теме|Подписываясь, вы даете согласие)/
+const POINTER = new RegExp(
+  [
+    '^(?:Подробнее|Подробности|Более подробно|Подробно об\\S*|Подробная информация|Полный текст|Читайте|Смотрите)(?:\\s|$|[—:,])',
+    '^(?:Откройте|Оформите|Оформляйте|Подберите|Получите|Сравните|Выберите)\\s',
+    '^\\S+(?:йте|ите)\\s.*Банки\\.ру',
+    '\\sБанки\\.ру$',
+    '^Оставайтесь на связи',
+    '«Макс[а-я]*»\\.?$',
+    '^За оформление\\s.*Банки\\.ру',
+    '^Условия по каждому\\s',
+    '^(?:Подписывайтесь|Следите за)\\s',
+    '\\sздесь\\s?\\.?$',
+    '\\sв статье:$',
+    '^[.\\s]*$',
+  ].join('|'),
+)
+
+function sentences(line: string): string[] {
+  return line.split(/(?<=[.!?…])\s+(?=[А-ЯЁA-Z«"])/)
+}
+
+export function trimArticleText(text: string): string {
+  const marker = text.search(TAIL_MARKERS)
+  const body = marker >= 0 ? text.slice(0, marker) : text
+  return body
+    .split('\n')
+    .map((line) => sentences(line.trim()).filter((s) => !POINTER.test(s.trim())).join(' ').trim())
+    .filter((line, i, lines) => line && line !== lines[i - 1])
+    .join('\n')
+    .trim()
+}
+
 export function extractArticleText(html: string): { text: string; method: 'json-ld' | 'paragraphs' } | null {
   const ld = fromJsonLd(html)
-  if (ld) return { text: ld, method: 'json-ld' }
+  if (ld) return { text: trimArticleText(ld), method: 'json-ld' }
   const p = fromParagraphs(html)
-  return p ? { text: p, method: 'paragraphs' } : null
+  return p ? { text: trimArticleText(p), method: 'paragraphs' } : null
 }
 
 async function readLimited(response: Response): Promise<string> {
