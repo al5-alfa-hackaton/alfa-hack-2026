@@ -29,9 +29,20 @@ const rawTag = z.object({
   materiality: z.coerce.number().int().min(0).max(3),
 })
 
+export const FINE_OKVED_GROUPS = new Set(['35.1', '46.3', '46.4', '46.7', '47.5', '47.7'])
+
 export function okvedGroup(okvedCode: string | null | undefined): string | null {
-  const m = okvedCode?.match(/^(\d{2})(?:\.(\d))?/)
-  return m ? (m[2] ? `${m[1]}.${m[2]}` : m[1]!) : null
+  const m = okvedCode?.match(/^(\d{2})(?:\.(\d)(\d)?)?/)
+  if (!m) return null
+  if (!m[2]) return m[1]!
+  const group = `${m[1]}.${m[2]}`
+  return m[3] && FINE_OKVED_GROUPS.has(group) ? `${group}${m[3]}` : group
+}
+
+export function sameIndustry(a: string, b: string): boolean {
+  const x = a.replace('.', '')
+  const y = b.replace('.', '')
+  return x.startsWith(y) || y.startsWith(x)
 }
 
 export function okvedDivisions(store: CompanyStore, perDivision = 1): { code: string; name: string }[] {
@@ -76,7 +87,7 @@ export function parseTagResponse(text: string, expectedIds: string[], divisionCo
         ...new Set(
           t.divisions
             .map((d) => okvedGroup(d.trim()))
-            .filter((d): d is string => d !== null && (divisionCodes.has(d) || [...divisionCodes].some((c) => c.startsWith(`${d}.`)))),
+            .filter((d): d is string => d !== null && [...divisionCodes].some((c) => c.replace('.', '').startsWith(d.replace('.', '')))),
         ),
       ].slice(0, 5),
       topics: [...new Set(t.topics.filter((x): x is Topic => (TOPIC_IDS as string[]).includes(x)))].slice(0, 4),

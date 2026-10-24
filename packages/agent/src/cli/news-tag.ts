@@ -1,6 +1,7 @@
 import { dataPaths, loadConfig } from '../config.js'
 import { loadCompanyStore } from '../data/companies.js'
 import { readJsonNews } from '../data/news-file.js'
+import { NEWS_SOURCE_IDS } from '../data/news.js'
 import { createChatModel } from '../llm.js'
 import { loadNewsTags, okvedDivisions, tagNewsBatch, writeNewsTags } from '../news/tagging.js'
 
@@ -14,7 +15,8 @@ const limit = Number(arg('limit') ?? Infinity)
 const config = loadConfig()
 const paths = dataPaths(config)
 const model = createChatModel(config, config.LLM_MODEL_TAGGER, { temperature: 0 })
-const [store, news] = await Promise.all([loadCompanyStore(paths), readJsonNews(paths.news)])
+const [store, allNews] = await Promise.all([loadCompanyStore(paths), readJsonNews(paths.news)])
+const news = allNews.filter((n) => NEWS_SOURCE_IDS.has(n.sourceId))
 const divisions = okvedDivisions(store)
 const tags = force ? new Map() : await loadNewsTags(paths.newsTags)
 const todo = news.filter((n) => !tags.has(n.id)).slice(0, limit)

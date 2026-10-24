@@ -2,8 +2,9 @@ import { FakeListChatModel } from '@langchain/core/utils/testing'
 import { describe, expect, it } from 'vitest'
 import { buildDataContext } from '../src/data/context.js'
 import type { NewsItem } from '../src/data/news.js'
-import { companyExposures, rankNewsForCompany } from '../src/news/ranking.js'
-import { okvedDivisions, parseTagResponse, tagNewsBatch, type NewsTag } from '../src/news/tagging.js'
+import { companyExposures, inferOkvedGroup, rankNewsForCompany, sameEvent } from '../src/news/ranking.js'
+import { okvedDivisions, okvedGroup, parseTagResponse, sameIndustry, tagNewsBatch, type NewsTag } from '../src/news/tagging.js'
+import { newsSearch } from '../src/tools/functions.js'
 import { bank, fixtureContext, news } from './helpers.js'
 
 const base = await fixtureContext()
@@ -46,8 +47,17 @@ describe('news tagging', () => {
   const divisions = okvedDivisions(base.companies)
 
   it('builds the OKVED division dictionary from company data', () => {
-    expect(divisions.map((d) => d.code)).toEqual(['05.1', '24.1', '46.7'])
+    expect(divisions.map((d) => d.code)).toEqual(['05.1', '24.1', '46.72'])
     expect(divisions[1]!.name).toContain('Производство чугуна')
+  })
+
+  it('splits mixed trade groups into subclasses and matches codes by hierarchy', () => {
+    expect(okvedGroup('46.71.2')).toBe('46.71')
+    expect(okvedGroup('41.20')).toBe('41.2')
+    expect(okvedGroup('46')).toBe('46')
+    expect(sameIndustry('46.71', '46.73')).toBe(false)
+    expect(sameIndustry('46.7', '46.71')).toBe(true)
+    expect(sameIndustry('46', '46.71')).toBe(true)
   })
 
   it('validates model output and drops unknown ids, divisions and topics', () => {
@@ -86,10 +96,22 @@ describe('ML news ranking', () => {
     expect(steel.relevance.explanations[0]!.signal).toMatch(/Отрасль события совпадает/)
   })
 
-  it('keeps the fresher of near-duplicate stories', () => {
-    const ids = rankNewsForCompany(ctx, tags, 'U_1', { perspective: 'ceo', asOf, limit: 5 }).map((r) => r.news.id)
-    expect(ids).toContain('news_steel_dup')
-    expect(ids).not.toContain('news_steel')
+  it('merges stories about the same event from different sources', () => {
+    const ranked = rankNewsForCompany(ctx, tags, 'U_1', { perspective: 'ceo', asOf, limit: 5 })
+    expect(ranked.map((r) => r.news.id)).not.toContain('news_steel')
+    expect(ranked.find((r) => r.news.id === 'news_steel_dup')!.relevance.relatedNewsIds).toEqual(['news_steel'])
+    const at = (title: string, publishedAt: string) => ({ title, publishedAt })
+    expect(sameEvent(at('Банк России сохранил ключевую ставку на уровне 14%', '2026-10-23T10:00:00Z'), at('ЦБ ожидаемо сохранил ключевую ставку 14%', '2026-10-23T12:00:00Z'))).toBe(true)
+    expect(sameEvent(at('Банк России сохранил ключевую ставку на уровне 14%', '2026-10-23T10:00:00Z'), at('Банк России сохранил ключевую ставку на уровне 14%', '2026-10-27T10:00:00Z'))).toBe(false)
+    expect(sameEvent(at('Цены на нефть выросли', '2026-10-23T10:00:00Z'), at('Цены на сталь выросли', '2026-10-23T10:00:00Z'))).toBe(false)
+  })
+
+  it('treats two-digit group and counterparty links as broad and not enough to enable financial channels', () => {
+    const own = base.companies.companies.get('U_1')![0]!
+    const sector = new Map<string, NewsTag>([['news_court', tag({ divisions: ['64.9'], topics: ['credit'], materiality: 3 })]])
+    const holder = rankNewsForCompany(ctx, sector, 'U_1', { perspective: 'cfo', asOf })
+    expect(holder.flatMap((r) => r.relevance.reasons)).not.toContain('loans')
+    expect(own.okvedCode).not.toMatch(/^64/)
   })
 
   it('shifts scores by perspective: rate news for CFO, trade news for CEO', () => {
@@ -114,6 +136,36 @@ describe('ML news ranking', () => {
   it('matches a whole OKVED division to its groups', () => {
     const divisionTags = new Map<string, NewsTag>([['news_steel', tag({ divisions: ['24'] })]])
     expect(rankNewsForCompany(ctx, divisionTags, 'U_1', { perspective: 'ceo', asOf }).map((r) => r.news.id)).toEqual(['news_steel'])
+  })
+
+  it('infers the industry of a user-registered profile from its free-text name', () => {
+    const own = base.companies.companies.get('U_1')![0]!
+    const store = { ...base.companies, companies: new Map(base.companies.companies) }
+    store.companies.set('custom_1', [
+      { ...own, id: 'custom_1', profileSource: 'user', groupId: null, okvedCode: null, okvedName: 'Производство стали', products: { ...own.products, loans: null }, customs: { hasRecords: null, countries: [] } },
+    ])
+    const userCtx = buildDataContext(store, bank, corpus)
+    expect(inferOkvedGroup(userCtx, 'Производство стали')).toBe('24.1')
+    const industry = companyExposures(userCtx, 'custom_1').find((e) => e.featureId === 'industry')!
+    expect([...industry.divisions!]).toEqual(['24.1'])
+    expect(industry.signal).toContain('Производство стали')
+    expect(rankNewsForCompany(userCtx, tags, 'custom_1', { perspective: 'ceo', asOf, limit: 5 }).map((r) => r.news.id)).toContain('news_steel_dup')
+  })
+
+  it('shows war news only to companies whose own industry it directly hits', () => {
+    const war = [
+      extra('news_war_plant', 'Атака БПЛА остановила металлургический комбинат', '2026-09-24T12:00:00.000Z'),
+      extra('news_war_talks', 'Песков: переговоры по Украине пройдут в ноябре', '2026-09-24T12:00:00.000Z'),
+    ]
+    const warCtx = buildDataContext(base.companies, bank, [...corpus, ...war])
+    const warTags = new Map<string, NewsTag>([
+      ['news_war_plant', tag({ divisions: ['24.1'], topics: ['commodities'], materiality: 3 })],
+      ['news_war_talks', tag({ topics: ['trade'], scope: 'macro', materiality: 2 })],
+    ])
+    const ids = (companyId: string) => rankNewsForCompany(warCtx, warTags, companyId, { perspective: 'ceo', asOf, limit: 5 }).map((r) => r.news.id)
+    expect(ids('U_1')).toEqual(['news_war_plant'])
+    expect(ids('U_2')).not.toContain('news_war_plant')
+    expect(newsSearch(warCtx, 'БПЛА металлургический комбинат').results).toHaveLength(0)
   })
 
   it('applies the requested period', () => {
