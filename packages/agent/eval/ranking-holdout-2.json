@@ -1,0 +1,418 @@
+{
+ "asOf": "2026-10-23T12:00:00.000Z",
+ "purpose": "отложенная проверка №2 (23.10.2026): компании и отрасли, которые не использовались ни при настройке, ни при сравнении вариантов; результат смотрится один раз после всех изменений",
+ "scale": {
+  "2": "прямо влияет на деньги компании: ее отрасль, ключевые продукты, сырье",
+  "1": "косвенно: макрособытия при наличии долга, курс при внешней торговле, смежные отрасли и группа",
+  "0": "не связано с компанией"
+ },
+ "labeledBy": "ассистент по профилю компании и тексту новости, до просмотра метрик; требует выборочной проверки экспертом",
+ "baseline": {
+  "version": "rules-2026-10-22.2",
+  "description": "правила rankNews из projects/backend, топ-5 на дату asOf"
+ },
+ "companies": [
+  {
+   "id": "U_14866",
+   "industry": "Производство пластмасс и синтетических смол в первичных формах",
+   "labels": {
+    "news_2bafbfeaa696": 0,
+    "news_f1202c54ef31": 0,
+    "news_970623b1457d": 0,
+    "news_05b4eaccbaca": 0,
+    "news_f001f2c7bc07": 0,
+    "news_5ac321c81dce": 0,
+    "news_2cb7c83c4117": 1,
+    "news_fe94f4d8ebd3": 1,
+    "news_35695975e49c": 0,
+    "news_b8044bef39f8": 0,
+    "news_58298338cbaf": 0,
+    "news_51f00c35b62c": 2
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_2bafbfeaa696",
+     "news_f1202c54ef31",
+     "news_970623b1457d",
+     "news_05b4eaccbaca",
+     "news_f001f2c7bc07"
+    ],
+    "ceo": [
+     "news_f1202c54ef31",
+     "news_970623b1457d",
+     "news_5ac321c81dce",
+     "news_05b4eaccbaca",
+     "news_f001f2c7bc07"
+    ]
+   }
+  },
+  {
+   "id": "U_185131",
+   "industry": "Производство мебели для офисов и предприятий торговли",
+   "labels": {
+    "news_f1202c54ef31": 0,
+    "news_05b4eaccbaca": 0,
+    "news_15c04909eda6": 0,
+    "news_0939469bebfe": 0,
+    "news_67ee1e8eb3c6": 0,
+    "news_c82555c7a834": 0,
+    "news_fe94f4d8ebd3": 1,
+    "news_30230503ebe4": 0,
+    "news_9d20c0a46a3a": 0,
+    "news_6d7f7c718c0a": 0,
+    "news_d012f3f96271": 1,
+    "news_58a0acaa2fe7": 0,
+    "news_1e50f4669ab1": 0,
+    "news_692c29a76f28": 0,
+    "news_bb83f9ef1e4c": 1,
+    "news_b359b6892b7e": 1,
+    "news_9117b0935e5b": 1,
+    "news_b9dc9aa0ed3e": 1,
+    "news_70371349a2e6": 1,
+    "news_a350f4707d26": 1,
+    "news_f55a65bf4ee6": 0
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_f1202c54ef31",
+     "news_05b4eaccbaca",
+     "news_15c04909eda6",
+     "news_0939469bebfe",
+     "news_67ee1e8eb3c6"
+    ],
+    "ceo": [
+     "news_f1202c54ef31",
+     "news_05b4eaccbaca",
+     "news_0939469bebfe",
+     "news_67ee1e8eb3c6",
+     "news_c82555c7a834"
+    ]
+   }
+  },
+  {
+   "id": "U_126015",
+   "industry": "Деятельность больничных организаций",
+   "labels": {
+    "news_f1202c54ef31": 0,
+    "news_67ee1e8eb3c6": 0,
+    "news_05b4eaccbaca": 0,
+    "news_0939469bebfe": 0,
+    "news_15c04909eda6": 0,
+    "news_c82555c7a834": 0,
+    "news_6d7f7c718c0a": 0,
+    "news_fe94f4d8ebd3": 1,
+    "news_30230503ebe4": 0,
+    "news_9d20c0a46a3a": 0,
+    "news_1e50f4669ab1": 0,
+    "news_73971624f9c5": 1,
+    "news_58a0acaa2fe7": 0,
+    "news_692c29a76f28": 0,
+    "news_411bd9f00d72": 0,
+    "news_d012f3f96271": 1,
+    "news_bb83f9ef1e4c": 1,
+    "news_b359b6892b7e": 1,
+    "news_5ccdebe0512b": 1,
+    "news_b9dc9aa0ed3e": 1,
+    "news_70371349a2e6": 1
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_f1202c54ef31",
+     "news_67ee1e8eb3c6",
+     "news_05b4eaccbaca",
+     "news_0939469bebfe",
+     "news_15c04909eda6"
+    ],
+    "ceo": [
+     "news_f1202c54ef31",
+     "news_67ee1e8eb3c6",
+     "news_05b4eaccbaca",
+     "news_0939469bebfe",
+     "news_c82555c7a834"
+    ]
+   }
+  },
+  {
+   "id": "U_60524",
+   "industry": "Деятельность по дополнительному профессиональному образованию прочая, не включенная в другие группировки",
+   "labels": {
+    "news_2bafbfeaa696": 0,
+    "news_27827718c9f7": 0,
+    "news_101f766f47c0": 0,
+    "news_3e213b7b1c89": 1,
+    "news_970623b1457d": 0,
+    "news_0475b99934f5": 0,
+    "news_4d6edf53af14": 1,
+    "news_27f88fe88ebb": 1,
+    "news_d012f3f96271": 1,
+    "news_b359b6892b7e": 1,
+    "news_b7d181aec241": 0,
+    "news_b16141b44968": 0,
+    "news_28277fb85f30": 1,
+    "news_b9dc9aa0ed3e": 1,
+    "news_3e23a58372ad": 1,
+    "news_e1dab9ddf1e4": 1
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_2bafbfeaa696",
+     "news_27827718c9f7",
+     "news_101f766f47c0",
+     "news_3e213b7b1c89",
+     "news_970623b1457d"
+    ],
+    "ceo": [
+     "news_101f766f47c0",
+     "news_3e213b7b1c89",
+     "news_970623b1457d",
+     "news_0475b99934f5",
+     "news_2bafbfeaa696"
+    ]
+   }
+  },
+  {
+   "id": "U_55415",
+   "industry": "Деятельность рекламных агентств прочая",
+   "labels": {
+    "news_d012f3f96271": 1,
+    "news_4d6edf53af14": 1,
+    "news_7d0a0fca076f": 0,
+    "news_bb83f9ef1e4c": 1,
+    "news_101f766f47c0": 0,
+    "news_3e04ea298f6a": 0,
+    "news_8da3d568ec88": 0,
+    "news_b359b6892b7e": 1,
+    "news_819b627e3990": 1,
+    "news_cd47578fa890": 2,
+    "news_27f88fe88ebb": 1,
+    "news_b9dc9aa0ed3e": 1,
+    "news_70371349a2e6": 1,
+    "news_aab30d617e80": 2
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_d012f3f96271",
+     "news_4d6edf53af14",
+     "news_7d0a0fca076f",
+     "news_bb83f9ef1e4c",
+     "news_101f766f47c0"
+    ],
+    "ceo": [
+     "news_d012f3f96271",
+     "news_4d6edf53af14",
+     "news_bb83f9ef1e4c",
+     "news_101f766f47c0",
+     "news_3e04ea298f6a"
+    ]
+   }
+  },
+  {
+   "id": "U_97566",
+   "industry": "Производство мясных (мясосодержащих) полуфабрикатов",
+   "labels": {
+    "news_4d6edf53af14": 2,
+    "news_63c1e796a811": 0,
+    "news_3c70185eeea1": 1,
+    "news_fe94f4d8ebd3": 1,
+    "news_d012f3f96271": 1,
+    "news_afb3c629d0ae": 0,
+    "news_bb83f9ef1e4c": 2,
+    "news_b359b6892b7e": 1,
+    "news_819b627e3990": 1,
+    "news_30230503ebe4": 0,
+    "news_b9dc9aa0ed3e": 1,
+    "news_70371349a2e6": 1,
+    "news_27f88fe88ebb": 1,
+    "news_55e948bbb4ac": 0
+   },
+   "baselineTop": {
+    "cfo": [
+     "news_4d6edf53af14",
+     "news_63c1e796a811",
+     "news_3c70185eeea1",
+     "news_fe94f4d8ebd3",
+     "news_d012f3f96271"
+    ],
+    "ceo": [
+     "news_4d6edf53af14",
+     "news_fe94f4d8ebd3",
+     "news_d012f3f96271",
+     "news_afb3c629d0ae",
+     "news_bb83f9ef1e4c"
+    ]
+   }
+  }
+ ],
+ "roles": {
+  "news_2bafbfeaa696": [
+   "cfo"
+  ],
+  "news_f1202c54ef31": [
+   "ceo"
+  ],
+  "news_970623b1457d": [
+   "cfo"
+  ],
+  "news_05b4eaccbaca": [
+   "ceo"
+  ],
+  "news_f001f2c7bc07": [
+   "cfo"
+  ],
+  "news_5ac321c81dce": [
+   "ceo"
+  ],
+  "news_2cb7c83c4117": [
+   "ceo"
+  ],
+  "news_fe94f4d8ebd3": [
+   "cfo",
+   "ceo"
+  ],
+  "news_35695975e49c": [
+   "cfo"
+  ],
+  "news_b8044bef39f8": [
+   "ceo"
+  ],
+  "news_58298338cbaf": [
+   "ceo"
+  ],
+  "news_51f00c35b62c": [
+   "ceo"
+  ],
+  "news_15c04909eda6": [
+   "ceo"
+  ],
+  "news_0939469bebfe": [
+   "cfo"
+  ],
+  "news_67ee1e8eb3c6": [
+   "ceo"
+  ],
+  "news_c82555c7a834": [
+   "ceo"
+  ],
+  "news_30230503ebe4": [
+   "cfo"
+  ],
+  "news_9d20c0a46a3a": [
+   "cfo"
+  ],
+  "news_6d7f7c718c0a": [
+   "ceo"
+  ],
+  "news_d012f3f96271": [
+   "cfo",
+   "ceo"
+  ],
+  "news_58a0acaa2fe7": [
+   "ceo"
+  ],
+  "news_1e50f4669ab1": [
+   "ceo"
+  ],
+  "news_73971624f9c5": [
+   "ceo"
+  ],
+  "news_692c29a76f28": [
+   "ceo"
+  ],
+  "news_27827718c9f7": [
+   "ceo"
+  ],
+  "news_101f766f47c0": [
+   "cfo"
+  ],
+  "news_3e213b7b1c89": [
+   "cfo"
+  ],
+  "news_0475b99934f5": [
+   "ceo"
+  ],
+  "news_4d6edf53af14": [
+   "cfo"
+  ],
+  "news_27f88fe88ebb": [
+   "cfo",
+   "ceo"
+  ],
+  "news_b359b6892b7e": [
+   "cfo"
+  ],
+  "news_b7d181aec241": [
+   "ceo"
+  ],
+  "news_b16141b44968": [
+   "ceo"
+  ],
+  "news_28277fb85f30": [
+   "ceo"
+  ],
+  "news_b9dc9aa0ed3e": [
+   "cfo",
+   "ceo"
+  ],
+  "news_7d0a0fca076f": [
+   "cfo"
+  ],
+  "news_bb83f9ef1e4c": [
+   "cfo"
+  ],
+  "news_3e04ea298f6a": [
+   "ceo"
+  ],
+  "news_8da3d568ec88": [
+   "ceo"
+  ],
+  "news_819b627e3990": [
+   "cfo"
+  ],
+  "news_cd47578fa890": [
+   "ceo"
+  ],
+  "news_70371349a2e6": [
+   "cfo"
+  ],
+  "news_63c1e796a811": [
+   "cfo"
+  ],
+  "news_3c70185eeea1": [
+   "cfo",
+   "ceo"
+  ],
+  "news_afb3c629d0ae": [
+   "cfo"
+  ],
+  "news_411bd9f00d72": [
+   "cfo"
+  ],
+  "news_9117b0935e5b": [
+   "cfo",
+   "ceo"
+  ],
+  "news_a350f4707d26": [
+   "cfo",
+   "ceo"
+  ],
+  "news_f55a65bf4ee6": [
+   "ceo"
+  ],
+  "news_5ccdebe0512b": [
+   "ceo"
+  ],
+  "news_3e23a58372ad": [
+   "ceo"
+  ],
+  "news_e1dab9ddf1e4": [
+   "ceo"
+  ],
+  "news_aab30d617e80": [
+   "ceo"
+  ],
+  "news_55e948bbb4ac": [
+   "cfo"
+  ]
+ },
+ "rolesNote": "Роль: для какого руководителя новость важна напрямую. Для другой роли оценка снижается на 1."
+}

@@ -1,12 +1,12 @@
 {
  "asOf": "2026-10-23T12:00:00.000Z",
- "purpose": "отложенная проверка: компании и отрасли, которые не использовались при настройке отбора и промптов",
+ "purpose": "бывшая отложенная проверка №1: компании не использовались при подборе весов, но 23.10.2026 ее метрики смотрели при сравнении вариантов, поэтому теперь она относится к настройке",
  "scale": {
   "2": "прямо влияет на деньги компании: ее отрасль, ключевые продукты, сырье",
   "1": "косвенно: макрособытия при наличии долга, курс при внешней торговле, смежные отрасли и группа",
   "0": "не связано с компанией"
  },
- "labeledBy": "ассистент по профилю компании и тексту новости, 23.10.2026; требует выборочной проверки командой",
+ "labeledBy": "ассистент по профилю компании и тексту новости; пул дополнен 23.10.2026 после смены разметки новостей; требует выборочной проверки экспертом",
  "baseline": {
   "version": "rules-2026-10-22.2",
   "description": "правила rankNews из projects/backend, топ-5 на дату asOf"
@@ -30,7 +30,12 @@
     "news_095e76c4716e": 2,
     "news_e1cad53b1771": 1,
     "news_a4dae1cfb22b": 0,
-    "news_a433052b1485": 1
+    "news_a433052b1485": 1,
+    "news_6d7f7c718c0a": 1,
+    "news_5f6f6180aa6c": 0,
+    "news_1e50f4669ab1": 0,
+    "news_1e7ac18b2659": 0,
+    "news_a05502fed85c": 1
    },
    "baselineTop": {
     "cfo": [
@@ -65,7 +70,14 @@
     "news_2381e70f4520": 2,
     "news_60c35d5c94e4": 1,
     "news_6d7f7c718c0a": 0,
-    "news_8c7874f459de": 1
+    "news_8c7874f459de": 1,
+    "news_bcb819b9cb56": 1,
+    "news_9d20c0a46a3a": 0,
+    "news_b08f4d922e83": 0,
+    "news_d012f3f96271": 1,
+    "news_bb83f9ef1e4c": 1,
+    "news_b359b6892b7e": 1,
+    "news_b9dc9aa0ed3e": 1
    },
    "baselineTop": {
     "cfo": [
@@ -98,7 +110,15 @@
     "news_c1fbc01da96e": 1,
     "news_88f23e4deb5e": 1,
     "news_9250d678a9bb": 0,
-    "news_4b6bf645945d": 1
+    "news_4b6bf645945d": 1,
+    "news_ee6da2800efa": 0,
+    "news_e9f9d1f000a1": 2,
+    "news_b359b6892b7e": 1,
+    "news_b9dc9aa0ed3e": 1,
+    "news_55e948bbb4ac": 0,
+    "news_3c70185eeea1": 1,
+    "news_70371349a2e6": 1,
+    "news_27f88fe88ebb": 1
    },
    "baselineTop": {
     "cfo": [
@@ -133,7 +153,16 @@
     "news_eb5d8730c91c": 0,
     "news_f19832474ccb": 0,
     "news_d4f6a1819a50": 0,
-    "news_34ecadbc417d": 0
+    "news_34ecadbc417d": 0,
+    "news_6d7f7c718c0a": 0,
+    "news_d7f2a3a5dd6c": 0,
+    "news_88f23e4deb5e": 0,
+    "news_b359b6892b7e": 1,
+    "news_819b627e3990": 1,
+    "news_30230503ebe4": 0,
+    "news_70371349a2e6": 1,
+    "news_8b2b83601a16": 1,
+    "news_55e948bbb4ac": 0
    },
    "baselineTop": {
     "cfo": [
@@ -170,7 +199,8 @@
     "news_dfd71bc6b39f": 2,
     "news_be1a7c9a9462": 0,
     "news_a9ea94f81759": 1,
-    "news_697543b1b3dc": 0
+    "news_697543b1b3dc": 0,
+    "news_810af34c21c8": 0
    },
    "baselineTop": {
     "cfo": [
@@ -208,7 +238,14 @@
     "news_0e1ca2930358": 0,
     "news_2f64023fac00": 1,
     "news_8f4718242b65": 1,
-    "news_046c6494817e": 1
+    "news_046c6494817e": 1,
+    "news_07eadbc57eea": 1,
+    "news_6d7f7c718c0a": 0,
+    "news_0475b99934f5": 0,
+    "news_fe94f4d8ebd3": 1,
+    "news_1e50f4669ab1": 0,
+    "news_9117b0935e5b": 1,
+    "news_978ff8cf135f": 1
    },
    "baselineTop": {
     "cfo": [
@@ -414,6 +451,75 @@
   ],
   "news_fe94f4d8ebd3": [
    "cfo",
+   "ceo"
+  ],
+  "news_5f6f6180aa6c": [
+   "ceo"
+  ],
+  "news_1e50f4669ab1": [
+   "ceo"
+  ],
+  "news_bcb819b9cb56": [
+   "ceo"
+  ],
+  "news_9d20c0a46a3a": [
+   "cfo"
+  ],
+  "news_b08f4d922e83": [
+   "ceo"
+  ],
+  "news_ee6da2800efa": [
+   "ceo"
+  ],
+  "news_e9f9d1f000a1": [
+   "ceo"
+  ],
+  "news_d7f2a3a5dd6c": [
+   "ceo"
+  ],
+  "news_810af34c21c8": [
+   "ceo"
+  ],
+  "news_07eadbc57eea": [
+   "ceo"
+  ],
+  "news_0475b99934f5": [
+   "ceo"
+  ],
+  "news_9117b0935e5b": [
+   "cfo",
+   "ceo"
+  ],
+  "news_b359b6892b7e": [
+   "cfo"
+  ],
+  "news_819b627e3990": [
+   "cfo"
+  ],
+  "news_70371349a2e6": [
+   "cfo"
+  ],
+  "news_1e7ac18b2659": [
+   "ceo"
+  ],
+  "news_a05502fed85c": [
+   "ceo"
+  ],
+  "news_55e948bbb4ac": [
+   "cfo"
+  ],
+  "news_3c70185eeea1": [
+   "cfo",
+   "ceo"
+  ],
+  "news_27f88fe88ebb": [
+   "cfo",
+   "ceo"
+  ],
+  "news_8b2b83601a16": [
+   "cfo"
+  ],
+  "news_978ff8cf135f": [
    "ceo"
   ]
  },

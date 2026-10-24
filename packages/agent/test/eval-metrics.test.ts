@@ -15,6 +15,7 @@ import {
   unjudged,
   unsupportedNumbers,
 } from '../src/eval/metrics.js'
+import { agreement, expertGrade, expertRoles } from '../src/eval/labels.js'
 
 const labels = { a: 2, b: 1, c: 0, d: 2 }
 
@@ -93,5 +94,22 @@ describe('позиция банка в выводах', () => {
   it('упоминание без проверенной цитаты банка считается ошибкой', () => {
     expect(bankAttribution(['Альфа-Банк ожидает снижения ставки.'], 0)).toEqual({ mentions: 1, unsupported: 1 })
     expect(bankAttribution(['Альфа-Банк ожидает снижения ставки.'], 1)).toEqual({ mentions: 1, unsupported: 0 })
+  })
+})
+
+describe('согласие разметчиков', () => {
+  it('считает совпадение и взвешенную каппу', () => {
+    expect(agreement([[0, 0], [1, 1], [2, 2]])).toMatchObject({ n: 3, exact: 1, withinOne: 1, kappa: 1 })
+    const half = agreement([[0, 1], [1, 1], [2, 0], [2, 2]])
+    expect(half.exact).toBe(0.5)
+    expect(half.withinOne).toBe(0.75)
+    expect(half.kappa).toBeLessThan(0.6)
+  })
+
+  it('берет медиану оценок и роли большинства', () => {
+    const pair = { grades: { a: 2, b: 1, c: 2 }, roles: { a: ['cfo'], b: ['cfo', 'ceo'], c: [] }, comments: {} }
+    expect(expertGrade(pair)).toBe(2)
+    expect(expertRoles(pair)).toEqual(['cfo', 'ceo'])
+    expect(expertGrade(undefined)).toBeUndefined()
   })
 })

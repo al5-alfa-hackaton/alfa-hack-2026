@@ -5,7 +5,7 @@
   "1": "косвенно: макрособытия при наличии долга, курс при внешней торговле, смежные отрасли и группа",
   "0": "не связано с компанией"
  },
- "labeledBy": "ассистент по профилю компании и тексту новости, 23.10.2026; требует выборочной проверки командой",
+ "labeledBy": "ассистент по профилю компании и тексту новости; пул дополнен 23.10.2026 после смены разметки новостей; требует выборочной проверки экспертом",
  "baseline": {
   "version": "rules-2026-10-22.2",
   "description": "правила rankNews из projects/backend, топ-5 на дату asOf"
@@ -26,7 +26,18 @@
     "news_0b5c57efbfb8": 0,
     "news_69b3dd0fb2e3": 0,
     "news_499407727cbe": 0,
-    "news_792a89876355": 0
+    "news_792a89876355": 0,
+    "news_ee6da2800efa": 0,
+    "news_91b3d8d5613c": 0,
+    "news_02ac993c3b4c": 1,
+    "news_401aa60cb0c8": 0,
+    "news_db8ce15e2413": 0,
+    "news_19dbb6312327": 0,
+    "news_f337de6992eb": 0,
+    "news_941c78007403": 0,
+    "news_a37ef5286dde": 0,
+    "news_6744e61ee0c8": 0,
+    "news_4d6edf53af14": 1
    },
    "baselineTop": {
     "cfo": [
@@ -59,7 +70,10 @@
     "news_c1fbc01da96e": 1,
     "news_69b3dd0fb2e3": 1,
     "news_499407727cbe": 1,
-    "news_8edc62185a4d": 2
+    "news_8edc62185a4d": 2,
+    "news_b359b6892b7e": 1,
+    "news_8ab4cc859fac": 1,
+    "news_ee6da2800efa": 0
    },
    "baselineTop": {
     "cfo": [
@@ -95,7 +109,14 @@
     "news_e45e011c1324": 1,
     "news_b0dc80aabd86": 2,
     "news_4b0920aaf7d0": 1,
-    "news_70371349a2e6": 1
+    "news_70371349a2e6": 1,
+    "news_b359b6892b7e": 1,
+    "news_819b627e3990": 1,
+    "news_30230503ebe4": 0,
+    "news_9be6f6cf36e0": 2,
+    "news_27f88fe88ebb": 1,
+    "news_3f16c666ac47": 1,
+    "news_55e948bbb4ac": 0
    },
    "baselineTop": {
     "cfo": [
@@ -132,7 +153,16 @@
     "news_765d73df14dd": 2,
     "news_34ecadbc417d": 1,
     "news_42be0b4a7c1d": 1,
-    "news_c8a765c9b7d9": 1
+    "news_c8a765c9b7d9": 1,
+    "news_6d7f7c718c0a": 2,
+    "news_1e50f4669ab1": 0,
+    "news_411bd9f00d72": 0,
+    "news_c728eca0f5cc": 0,
+    "news_d78d2773afb0": 1,
+    "news_1d54382fa555": 1,
+    "news_c34f21ab6fa7": 2,
+    "news_8b2b83601a16": 1,
+    "news_63d797783d23": 2
    },
    "baselineTop": {
     "cfo": [
@@ -166,7 +196,12 @@
     "news_c572d14a640c": 1,
     "news_499407727cbe": 2,
     "news_69b3dd0fb2e3": 2,
-    "news_eb5d8730c91c": 0
+    "news_eb5d8730c91c": 0,
+    "news_ee6da2800efa": 1,
+    "news_91b3d8d5613c": 1,
+    "news_5eeb152c130b": 0,
+    "news_18d8f1ccce60": 1,
+    "news_dfd71bc6b39f": 1
    },
    "baselineTop": {
     "cfo": [
@@ -200,7 +235,17 @@
     "news_eaf98c2dd22d": 2,
     "news_765d73df14dd": 2,
     "news_566421fd0e48": 1,
-    "news_dac9ce22f171": 2
+    "news_dac9ce22f171": 2,
+    "news_d7350abb1fc8": 1,
+    "news_d7f2a3a5dd6c": 0,
+    "news_7c223bcf22b0": 0,
+    "news_fe94f4d8ebd3": 0,
+    "news_30230503ebe4": 0,
+    "news_9d20c0a46a3a": 0,
+    "news_eb5d8730c91c": 0,
+    "news_2a542d9f3329": 0,
+    "news_0029391efeb9": 0,
+    "news_c34f21ab6fa7": 1
    },
    "baselineTop": {
     "cfo": [
@@ -373,6 +418,112 @@
   ],
   "news_fe94f4d8ebd3": [
    "cfo",
+   "ceo"
+  ],
+  "news_ee6da2800efa": [
+   "ceo"
+  ],
+  "news_91b3d8d5613c": [
+   "ceo"
+  ],
+  "news_02ac993c3b4c": [
+   "cfo"
+  ],
+  "news_401aa60cb0c8": [
+   "ceo"
+  ],
+  "news_db8ce15e2413": [
+   "ceo"
+  ],
+  "news_19dbb6312327": [
+   "ceo"
+  ],
+  "news_f337de6992eb": [
+   "ceo"
+  ],
+  "news_b359b6892b7e": [
+   "cfo"
+  ],
+  "news_8ab4cc859fac": [
+   "ceo"
+  ],
+  "news_819b627e3990": [
+   "cfo"
+  ],
+  "news_30230503ebe4": [
+   "cfo"
+  ],
+  "news_9be6f6cf36e0": [
+   "ceo"
+  ],
+  "news_27f88fe88ebb": [
+   "cfo",
+   "ceo"
+  ],
+  "news_3f16c666ac47": [
+   "cfo"
+  ],
+  "news_6d7f7c718c0a": [
+   "ceo"
+  ],
+  "news_1e50f4669ab1": [
+   "ceo"
+  ],
+  "news_411bd9f00d72": [
+   "cfo"
+  ],
+  "news_c728eca0f5cc": [
+   "ceo"
+  ],
+  "news_d78d2773afb0": [
+   "ceo"
+  ],
+  "news_d7350abb1fc8": [
+   "ceo"
+  ],
+  "news_7c223bcf22b0": [
+   "ceo"
+  ],
+  "news_9d20c0a46a3a": [
+   "cfo"
+  ],
+  "news_941c78007403": [
+   "ceo"
+  ],
+  "news_5eeb152c130b": [
+   "ceo"
+  ],
+  "news_1d54382fa555": [
+   "ceo"
+  ],
+  "news_2a542d9f3329": [
+   "ceo"
+  ],
+  "news_0029391efeb9": [
+   "ceo"
+  ],
+  "news_a37ef5286dde": [
+   "ceo"
+  ],
+  "news_6744e61ee0c8": [
+   "ceo"
+  ],
+  "news_55e948bbb4ac": [
+   "cfo"
+  ],
+  "news_c34f21ab6fa7": [
+   "ceo"
+  ],
+  "news_8b2b83601a16": [
+   "cfo"
+  ],
+  "news_63d797783d23": [
+   "ceo"
+  ],
+  "news_18d8f1ccce60": [
+   "ceo"
+  ],
+  "news_dfd71bc6b39f": [
    "ceo"
   ]
  },

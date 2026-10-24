@@ -21,3 +21,9 @@ packages/agent/results/ocr-compare-*/*/*.md
 !packages/agent/results/ocr-compare-*/*/report.md
 
 .local/
+
+# Human labeling files stay local; eval:ranking reads them when present.
+packages/agent/eval/human/
+packages/agent/eval/expert-labels.json
+packages/agent/results/label-agreement-*.md
+data/*.zip
