@@ -8,16 +8,23 @@ import {
 import { AppError } from '../../../shared/kernel/errors.js'
 import type { CompanyCatalog, CompanyContext } from '../application/catalog.js'
 export class ResearchCatalog implements CompanyCatalog {
-  readonly corpusVersion: string
+  private version?: { news: DataContext['news']; hash: string }
   constructor(
     private readonly ctx: DataContext,
     private readonly mode: 'fixture' | 'research',
     private readonly names: Map<string, string> = new Map(),
-  ) {
-    this.corpusVersion = createHash('sha256')
-      .update(JSON.stringify([ctx.news, ctx.bank]))
-      .digest('hex')
-      .slice(0, 20)
+  ) {}
+  // The news corpus is reloaded in place after the daily refresh.
+  get corpusVersion() {
+    if (this.version?.news !== this.ctx.news)
+      this.version = {
+        news: this.ctx.news,
+        hash: createHash('sha256')
+          .update(JSON.stringify([this.ctx.news, this.ctx.bank]))
+          .digest('hex')
+          .slice(0, 20),
+      }
+    return this.version.hash
   }
   list() {
     return [...this.ctx.companies.companies.entries()]

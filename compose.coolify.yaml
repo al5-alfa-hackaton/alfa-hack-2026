@@ -28,8 +28,14 @@ x-backend-env: &backend-env
   RUN_RESERVATION_RUB: ${RUN_RESERVATION_RUB:-25}
   AGENT_MAX_STEPS: ${AGENT_MAX_STEPS:-6}
   LLM_MAX_OUTPUT_TOKENS: ${LLM_MAX_OUTPUT_TOKENS:-10000}
+  RANKING_LIMIT: ${RANKING_LIMIT:-10}
+  FEED_CARDS: ${FEED_CARDS:-}
+  AGENT_VERIFY: ${AGENT_VERIFY:-false}
+  NEWS_REFRESH_CRON: ${NEWS_REFRESH_CRON:-0 9 * * *}
 
 x-data-volume: &data-volume ${DATA_HOST_DIR:-/data/alfa-hack}:/app/data:ro
+# The worker runs the daily news refresh and writes data/processed.
+x-data-volume-rw: &data-volume-rw ${DATA_HOST_DIR:-/data/alfa-hack}:/app/data
 
 services:
   frontend:
@@ -109,7 +115,7 @@ services:
         fi
         echo "worker idle: AGENT_PROVIDER=$$AGENT_PROVIDER (set langgraph to enable analysis)"
         exec sleep infinity
-    volumes: [*data-volume]
+    volumes: [*data-volume-rw]
     environment: *backend-env
     depends_on:
       migrate: { condition: service_completed_successfully }

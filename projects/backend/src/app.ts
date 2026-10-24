@@ -15,6 +15,7 @@ import { sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { loadConfig, type Config } from './config.js'
 import { compose, type Runtime } from './composition/runtime.js'
+import { watchNewsRefresh } from './composition/news-refresh.js'
 import { AppError } from './shared/kernel/errors.js'
 import { transformOpenApi } from './plugins/openapi.js'
 import { authRateKey, registerAuth } from './plugins/auth.js'
@@ -180,7 +181,11 @@ export async function buildApp(config: Config = loadConfig(), deps?: Runtime) {
   })
   app.register(createCompaniesModule(runtime.catalog), { prefix: '/v1' })
   app.register(createAnalyticsModule(runtime.analytics, runtime.documents), { prefix: '/v1' })
+  const stopWatching = deps
+    ? () => {}
+    : watchNewsRefresh(config, runtime.data, (message) => app.log.info(message))
   app.addHook('onClose', async () => {
+    stopWatching()
     redis?.disconnect()
     if (!deps) await runtime.database?.pool.end()
   })

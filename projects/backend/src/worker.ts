@@ -3,6 +3,7 @@ import { Redis } from 'ioredis'
 import { agentErrorCode } from './modules/analytics/infrastructure/agent-error.js'
 import { loadConfig } from './config.js'
 import { compose } from './composition/runtime.js'
+import { scheduleNewsRefresh, watchNewsRefresh } from './composition/news-refresh.js'
 const config = loadConfig()
 if (!config.DATABASE_URL) throw new Error('Worker requires DATABASE_URL')
 if (config.AGENT_PROVIDER === 'disabled')
@@ -11,6 +12,10 @@ const runtime = await compose(config)
 const connection = new Redis(config.REDIS_URL, { maxRetriesPerRequest: null })
 connection.on('error', () => {})
 const queue = new Queue('analysis-runs', { connection, prefix: config.QUEUE_PREFIX })
+const stopWatching = watchNewsRefresh(config, runtime.data, (message) =>
+  process.stdout.write(`${message}\n`),
+)
+const stopRefresh = await scheduleNewsRefresh(config, connection)
 let closing = false,
   dispatching = false
 let dispatchTask: Promise<void> | undefined
@@ -116,6 +121,8 @@ async function close() {
   if (closing) return
   closing = true
   clearInterval(timer)
+  stopWatching()
+  await stopRefresh()
   await worker.close()
   await dispatchTask
   await queue.close()
