@@ -1,7 +1,7 @@
 import { AIMessage, HumanMessage } from '@langchain/core/messages'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { createFeedFinalizer, parseFeedAnswer, splitInlineList, toStructuredDraft } from '../src/agent/feed-parser.js'
+import { createFeedFinalizer, keepCards, parseFeedAnswer, splitInlineList, toStructuredDraft } from '../src/agent/feed-parser.js'
 import { buildTaskPrompt, clarificationAllowed } from '../src/agent/prompts.js'
 import { fixtureContext } from './helpers.js'
 
@@ -229,5 +229,23 @@ describe('форма ответа в режиме вопроса', () => {
     const [event] = parseFeedAnswer(text, { mode: 'question' }).events
     expect(event!.answer).toBe('1) Спрос группы на топливо упадет.\n2) Лизинг подорожает.\n\nКакая доля выручки приходится на группу?')
     expect(parseFeedAnswer(text).events[0]!.answer).toBe('Какая доля выручки приходится на группу?')
+  })
+})
+
+describe('выбор карточек для ленты', () => {
+  it('сначала публикует события с рисками или возможностями, остальные пропускает с причиной', () => {
+    const text = [
+      'Событие news_a',
+      'Главное: Событие без последствий. Признаки: industry. Оговорка: нет.',
+      'Событие news_b',
+      'Главное: Ставка высокая. Признаки: loans. Оговорка: тип ставки неизвестен.',
+      'Риск: Расходы вырастут. Признаки: loans. Оговорка: тип ставки неизвестен.',
+      'Событие news_c',
+      'Главное: Спрос растет. Признаки: industry. Оговорка: доля неизвестна.',
+      'Возможность: Выручка вырастет. Признаки: industry. Оговорка: доля неизвестна.',
+    ].join('\n')
+    const result = keepCards(parseFeedAnswer(text), ['news_a', 'news_b', 'news_c'], 2)
+    expect(result.events.map((e) => e.eventId)).toEqual(['news_b', 'news_c'])
+    expect(result.skipped).toEqual([{ eventId: 'news_a', reason: 'агент не нашел последствий для компании' }])
   })
 })

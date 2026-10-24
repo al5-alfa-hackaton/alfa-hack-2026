@@ -4,6 +4,8 @@ import type { DataContext } from '../data/context.js'
 import { isFeatureId } from '../features.js'
 import { evidenceVerify } from '../tools/functions.js'
 import { textOf, type AgentState } from './graph.js'
+import { verifyResult, type Verdict, type VerifyInvoke } from './verify.js'
+import { answerForm, enforceForm, isSmallTalk } from './form.js'
 
 export type DraftCitation = { documentId: string; quote: string }
 export type DraftClaim = {
@@ -118,6 +120,14 @@ function emptyDraft(eventId: string): Draft {
   return { eventId, kindWord: null, main: null, answer: null, clarification: null, facts: [], bank: [], inferences: [], risks: [], opportunities: [], actions: [] }
 }
 
+export function staleBankQuote(ctx: DataContext, documentId: string, quote: string): string | null {
+  const note = ctx.bank.documents.find((d) => d.id === documentId)?.note
+  if (!note) return null
+  if (/оценки устарели/i.test(note)) return note
+  const outdated = [...(note.match(/\(([^)]*)\)\s*устарел/)?.[1] ?? '').matchAll(/(\d+(?:,\d+)?)\s*%/g)].map((m) => m[1]!)
+  return outdated.some((n) => new RegExp(`(?<![\\d,])${n.replace(',', '\\,')}\\s*%`).test(quote)) ? note : null
+}
+
 function readCitation(body: string, eventId: string, label: 'fact' | 'bank', issues: string[], opts: FeedParseOptions): DraftCitation | null {
   const tail = body.match(CITATION_TAIL)
   if (!tail) {
@@ -138,6 +148,10 @@ function readCitation(body: string, eventId: string, label: 'fact' | 'bank', iss
   if (quote !== raw) issues.push(`${eventId}: цитата длиннее ${QUOTE_MAX} символов сокращена по границе предложения`)
   if (opts.ctx && !evidenceVerify(opts.ctx, [{ documentId, quote }])[0]?.verified) {
     issues.push(`${eventId}: цитата не найдена в документе ${documentId}`)
+    return null
+  }
+  if (label === 'bank' && opts.ctx && staleBankQuote(opts.ctx, documentId, quote)) {
+    issues.push(`${eventId}: позиция банка из устаревшего прогноза (${documentId}) убрана`)
     return null
   }
   return { documentId, quote }
@@ -291,8 +305,9 @@ export function noteLine(note: FeedNote): string {
   return note.uncertainty ? `${note.text} (${note.uncertainty})` : note.text
 }
 
-export function toStructuredDraft(result: FeedParseResult) {
+export function toStructuredDraft(result: FeedParseResult, verification?: { checked: number; rejected: (Verdict & { text: string })[] }) {
   return {
+    ...(verification ? { verification } : {}),
     events: result.events.map((e) => ({
       ...e,
       risks: e.risks.map(noteLine),
@@ -320,6 +335,34 @@ function plainAnswer(text: string, eventId: string): ParsedEvent | null {
   return { eventId, kind: 'context', summary: null, answer, clarification: null, claims: [], risks: [], opportunities: [], actions: [] }
 }
 
+export function shapeAnswers(result: FeedParseResult, question: string): FeedParseResult {
+  const smallTalk = isSmallTalk(question)
+  const form = smallTalk ? ({ kind: 'brief' } as const) : answerForm(question)
+  if (!form) return result
+  return {
+    ...result,
+    events: result.events.map((e) => {
+      if (!e.answer) return e
+      const body = e.clarification ? e.answer.replace(e.clarification, '').trim() : e.answer
+      const answer = [enforceForm(body, form), smallTalk ? null : e.clarification].filter(Boolean).join('\n\n')
+      return smallTalk ? { ...e, answer, clarification: null, claims: [], risks: [], opportunities: [], actions: [] } : { ...e, answer }
+    }),
+  }
+}
+
+export function keepCards(result: FeedParseResult, eventIds: string[], maxCards: number): FeedParseResult {
+  const order = (e: ParsedEvent) => eventIds.indexOf(e.eventId)
+  const withConsequences = (e: ParsedEvent) => e.risks.length + e.opportunities.length > 0 || Boolean(e.answer)
+  const ranked = [...result.events].sort((a, b) => Number(withConsequences(b)) - Number(withConsequences(a)) || order(a) - order(b))
+  const kept = ranked.slice(0, maxCards)
+  const dropped = ranked.slice(maxCards)
+  return {
+    events: result.events.filter((e) => kept.includes(e)),
+    skipped: [...result.skipped, ...dropped.map((e) => ({ eventId: e.eventId, reason: withConsequences(e) ? 'лимит карточек' : 'агент не нашел последствий для компании' }))],
+    issues: result.issues,
+  }
+}
+
 export function createFeedFinalizer(opts: {
   ctx: DataContext
   eventIds: string[]
@@ -327,15 +370,28 @@ export function createFeedFinalizer(opts: {
   mode?: 'feed' | 'question'
   allowClarification?: boolean
   fallback?: (state: AgentState, config: RunnableConfig) => Promise<BaseMessage>
+  verify?: VerifyInvoke
+  maxCards?: number
+  question?: string
 }) {
   return async (state: AgentState, config: RunnableConfig): Promise<BaseMessage> => {
     const text = finalAnswer(state)
-    const result = parseFeedAnswer(text, opts)
+    let result = parseFeedAnswer(text, opts)
     if (!result.events.length && !result.skipped.length && opts.mode === 'question' && opts.eventIds[0]) {
       const plain = plainAnswer(text, opts.eventIds[0])
       if (plain) result.events.push(plain)
     }
     if (!result.events.length && !result.skipped.length && opts.fallback) return opts.fallback(state, config)
-    return new AIMessage({ content: JSON.stringify(toStructuredDraft(result)) })
+    if (opts.maxCards !== undefined) result = keepCards(result, opts.eventIds, opts.maxCards)
+    if (opts.mode === 'question' && opts.question) result = shapeAnswers(result, opts.question)
+    if (!opts.verify || !result.events.length) return new AIMessage({ content: JSON.stringify(toStructuredDraft(result)) })
+    try {
+      const checked = await verifyResult(result, state.messages, opts.verify)
+      result = checked.result
+      return new AIMessage({ content: JSON.stringify(toStructuredDraft(result, { checked: checked.statements.length, rejected: checked.verdicts.filter((v) => !v.supported).map((v) => ({ ...v, text: checked.statements.find((x) => x.id === v.id)?.text ?? '' })) })) })
+    } catch (error) {
+      result.issues.push(`проверка ответа не выполнена: ${(error as Error).message.slice(0, 120)}`)
+      return new AIMessage({ content: JSON.stringify(toStructuredDraft(result)) })
+    }
   }
 }

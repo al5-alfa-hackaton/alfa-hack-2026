@@ -34,6 +34,7 @@ export function dataPaths(config: Pick<Config, 'DATA_DIR'>) {
     bankOcr: `${processed}/bank-ocr`,
     news: `${processed}/news.json`,
     newsTags: `${processed}/news-tags.json`,
+    newsRefreshed: `${processed}/news-refreshed.json`,
     processed,
   }
 }
