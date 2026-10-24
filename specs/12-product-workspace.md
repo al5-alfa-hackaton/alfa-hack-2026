@@ -31,7 +31,7 @@ POST /v1/session обменивает ключ из AUTH_USERS_JSON на под�
 
 AGENT_PROVIDER по умолчанию disabled: профиль и имеющиеся результаты доступны, новые задания отклоняются до создания записи/резервирования бюджета. GET /v1/me содержит analysisAvailable. Чтобы включить LangGraph, нужны DATA_DIR, одобренный LLM gateway/key и подтверждённый hard per-request RUB cap. При неверной конфигурации нет автоматического переключения на fixtures. Модульные тесты NODE_ENV=test используют fixture provider; за пределами тестов он включается только явно. Production запрещает fixtures и DEV_AUTH. Старые fixture insights не выдаются в режиме research.
 
-Новые точки входа входят в OpenAPI; frontend использует generated operations. Корпус загружается при старте: после ingest нужно перезапустить API и worker. Автоматическое расписание ingestion, live gateway quality evaluation и администрирование пользователей остаются отдельной работой.
+Новые точки входа входят в OpenAPI; frontend использует generated operations. Корпус загружается при старте. Новости worker обновляет по расписанию `NEWS_REFRESH_CRON`, и API и worker перечитывают их без перезапуска. Материалы банка и CSV по-прежнему требуют перезапуска.
 
 ## Проверки
 
