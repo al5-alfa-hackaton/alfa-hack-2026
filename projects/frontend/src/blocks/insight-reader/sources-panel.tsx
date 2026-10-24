@@ -29,7 +29,11 @@ function DocumentFragment({ evidence }: { evidence: Insight['evidence'][number] 
     <div className="space-y-4" aria-busy={document.isFetching}>
       <p className="text-xs text-muted-foreground">
         {evidence.sourceKind === 'bank' ? 'Материал банка' : 'Новость'} ·{' '}
-        {evidence.contentExtent === 'lead' ? 'Доступен лид публикации' : 'Страница ' + page}
+        {evidence.contentExtent === 'lead'
+          ? 'Доступен лид публикации'
+          : evidence.contentExtent === 'full_text'
+            ? 'Полный текст публикации'
+            : 'Страница ' + page}
         {evidence.publishedAt && ' · ' + new Date(evidence.publishedAt).toLocaleDateString('ru-RU')}
       </p>
       <blockquote className="border-l-2 pl-4 text-sm leading-7">{evidence.quote}</blockquote>

@@ -8757,7 +8757,8 @@
                       "type": "string",
                       "enum": [
                         "page",
-                        "lead"
+                        "lead",
+                        "full_text"
                       ]
                     },
                     "page": {

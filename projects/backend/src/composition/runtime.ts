@@ -1,4 +1,4 @@
-import type { Config } from '../config.js'
+import { modelCallMargin, type Config } from '../config.js'
 import { createDatabase } from '../infrastructure/database/client.js'
 import { createData } from './data.js'
 import { ResearchCatalog } from '../modules/companies/infrastructure/research-catalog.js'
@@ -79,9 +79,10 @@ export async function compose(config: Config) {
             catalog,
             data,
             store,
-            database ? new CheckpointRuntime(database.pool, config.AGENT_MAX_STEPS + 2) : undefined,
+            database ? new CheckpointRuntime(database.pool, config.AGENT_MAX_STEPS + modelCallMargin(config)) : undefined,
           )
   return {
+    data,
     database,
     catalog,
     companies,

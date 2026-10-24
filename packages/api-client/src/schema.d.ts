@@ -3711,7 +3711,7 @@ export interface operations {
                         /** @enum {string} */
                         sourceKind: "news" | "bank";
                         /** @enum {string} */
-                        contentExtent: "page" | "lead";
+                        contentExtent: "page" | "lead" | "full_text";
                         page: number;
                         offset: number;
                         totalLength: number;

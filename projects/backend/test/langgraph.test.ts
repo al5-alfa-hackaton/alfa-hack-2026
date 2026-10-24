@@ -7,6 +7,10 @@ import { createData } from '../src/composition/data.js'
 import { ResearchCatalog } from '../src/modules/companies/infrastructure/research-catalog.js'
 import { LangGraphRuntime } from '../src/modules/analytics/infrastructure/agent-runtime.js'
 import { rankNews } from '../src/modules/analytics/domain/ranking.js'
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { ML_RANKING_VERSION, NEWS_TAG_PROMPT_VERSION } from '@alfa/agent'
 import type { AnalyticsStore, Run } from '../src/modules/analytics/index.js'
 const servers: Server[] = []
 afterEach(async () => {
@@ -145,37 +149,18 @@ it.each([0, 6])(
       for await (const _ of req) {
       }
       requests++
-      const content =
-        requests === 1
-          ? [
-              ...[news, steel, ...extraNews].map(
-                (event) => `Событие ${event.id}\nФакт: «${event.text}» [${event.id}]`,
-              ),
-              `Событие ${coal.id}: пропустить — недостаточная связь. «${coal.text}»`,
-            ].join('\n')
-          : JSON.stringify({
-              events: [
-                { eventId: steel.id, claims: [claim(steel)] },
-                {
-                  eventId: news.id,
-                  summary: 'Главное: стоимость финансирования может измениться.',
-                  kind: 'risk',
-                  risks: ['Процентные расходы могут вырасти.'],
-                  opportunities: [],
-                  actions: ['Проверить условия кредитования.'],
-                  claims: [
-                    claim(news),
-                    {
-                      ...claim(news),
-                      citations: [{ documentId: news.id, quote: 'x'.repeat(301) }],
-                    },
-                  ],
-                },
-                { eventId: coal.id, claims: [claim(coal)] },
-                ...extraNews.map((event) => ({ eventId: event.id, claims: [claim(event)] })),
-                { eventId: 'news_fixture_retail', claims: [claim(news)] },
-              ],
-            })
+      const content = [
+        `Событие ${news.id}`,
+        'Тип: риск',
+        'Главное: Стоимость финансирования может измениться. Признаки: loans. Оговорка: тип ставки неизвестен.',
+        `Факт: «${news.text}» [${news.id}]`,
+        'Риск: Процентные расходы могут вырасти. Признаки: loans. Оговорка: тип ставки неизвестен.',
+        'Стоит проверить: условия кредитования. Признаки: loans. Оговорка: договоры не раскрыты.',
+        ...[steel, ...extraNews].map(
+          (event) => `Событие ${event.id}\nФакт: «${event.text}» [${event.id}]`,
+        ),
+        `Событие ${coal.id}: пропустить — недостаточная связь. «${coal.text}»`,
+      ].join('\n')
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(
         JSON.stringify({
@@ -239,50 +224,27 @@ it.each([0, 6])(
     expect(result.insights.every((i) => i.evidence.some((e) => e.documentId === i.event.id))).toBe(
       true,
     )
-    expect(requests).toBe(2)
+    expect(requests).toBe(1)
+    expect(result.insights.map((i) => i.event.id)).not.toContain(coal.id)
     const finance = result.insights.find((insight) => insight.event.id === news.id)!
-    expect(finance.summary).toBe('Главное: стоимость финансирования может измениться.')
+    expect(finance.summary).toBe('Стоимость финансирования может измениться.')
     expect(finance.kind).toBe('risk')
-    expect(finance.risks).toEqual(['Процентные расходы могут вырасти.'])
-    expect(finance.actions).toEqual(['Проверить условия кредитования.'])
-    expect(finance.limitations).toContain(
-      'Отдельные утверждения исключены из-за неверного формата.',
-    )
+    expect(finance.risks).toEqual(['Процентные расходы могут вырасти. (тип ставки неизвестен)'])
+    expect(finance.actions).toEqual(['Проверить условия кредитования. (договоры не раскрыты)'])
   },
 )
 
-it('returns the direct answer instead of repeating the digest in question mode', async () => {
+async function askQuestion(replies: string[], question = 'Что проверить по кредиту?') {
   const data = await createData(loadConfig({ NODE_ENV: 'test' }))
   const catalog = new ResearchCatalog(data, 'fixture')
   const news = data.news[0]!
-  const answer = 'Если ставка плавающая, проверьте дату её следующего пересмотра.'
   let requests = 0
   const server = createServer(async (req, res) => {
     for await (const chunk of req) {
       void chunk
     }
     requests++
-    const content =
-      requests === 1
-        ? `Событие ${news.id}\nОтвет: ${answer}\nФакт: «${news.text}» [${news.id}]`
-        : JSON.stringify({
-            events: [
-              {
-                eventId: news.id,
-                summary: 'Это сводка, а не ответ.',
-                answer,
-                claims: [
-                  {
-                    kind: 'fact',
-                    text: news.text,
-                    companyFeatureIds: [],
-                    uncertainty: null,
-                    citations: [{ documentId: news.id, quote: news.text }],
-                  },
-                ],
-              },
-            ],
-          })
+    const content = replies[requests - 1] ?? replies.at(-1)!
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(
       JSON.stringify({
@@ -327,7 +289,7 @@ it('returns the direct answer instead of repeating the digest in question mode',
       companyId: 'U_1',
       perspective: 'cfo',
       kind: 'question',
-      question: 'Что проверить по кредиту?',
+      question,
       insightId: randomUUID(),
     },
     status: 'running',
@@ -343,6 +305,111 @@ it('returns the direct answer instead of repeating the digest in question mode',
     new AbortController().signal,
     async () => {},
   )
+  return { result, requests: () => requests, news }
+}
+
+it('returns the direct answer instead of repeating the digest in question mode', async () => {
+  const answer = 'Если ставка плавающая, проверьте дату её следующего пересмотра.'
+  const data = await createData(loadConfig({ NODE_ENV: 'test' }))
+  const news = data.news[0]!
+  const { result, requests } = await askQuestion([
+    `Событие ${news.id}\nОтвет: ${answer}\nФакт: «${news.text}» [${news.id}]`,
+  ])
   expect(result).toEqual({ insights: [], answer })
-  expect(requests).toBe(2)
+  expect(requests()).toBe(1)
+})
+
+it('returns answers without facts, such as greetings and clarifying questions', async () => {
+  const greeting = await askQuestion(['Здравствуйте! Спросите о рисках или действиях по этому событию.'], 'привет!')
+  expect(greeting.result).toEqual({
+    insights: [],
+    answer: 'Здравствуйте! Спросите о рисках или действиях по этому событию.',
+  })
+  const data = await createData(loadConfig({ NODE_ENV: 'test' }))
+  const clarification = await askQuestion(
+    [
+      `Событие ${data.news[0]!.id}\nОтвет: Точную сумму назвать нельзя: объем долга неизвестен.\nУточнение: Какой объем кредитов привязан к ключевой ставке?`,
+    ],
+    'Сколько мы потеряем?',
+  )
+  expect(clarification.result.answer).toBe(
+    'Точную сумму назвать нельзя: объем долга неизвестен.\n\nКакой объем кредитов привязан к ключевой ставке?',
+  )
+  expect(clarification.requests()).toBe(1)
+})
+
+it('ranks events with the ML ranking when news tags are available', async () => {
+  const data = await createData(loadConfig({ NODE_ENV: 'test' }))
+  const catalog = new ResearchCatalog(data, 'fixture')
+  const steel = data.news.find((n) => n.id === 'news_fixture_steel')!
+  const dataDir = await mkdtemp(join(tmpdir(), 'alfa-tags-'))
+  await mkdir(join(dataDir, 'processed'), { recursive: true })
+  await writeFile(
+    join(dataDir, 'processed', 'news-tags.json'),
+    JSON.stringify({
+      promptVersion: NEWS_TAG_PROMPT_VERSION,
+      model: 'test',
+      updatedAt: '2026-10-22T00:00:00.000Z',
+      tags: {
+        [steel.id]: { divisions: ['24.1'], topics: ['demand'], scope: 'sector', materiality: 3 },
+        news_fixture_retail: { divisions: ['47.1'], topics: ['demand'], scope: 'sector', materiality: 3 },
+        news_fixture: { divisions: [], topics: [], scope: 'other', materiality: 0 },
+      },
+    }),
+  )
+  const server = createServer(async (req, res) => {
+    for await (const chunk of req) void chunk
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(
+      JSON.stringify({
+        id: 'ml-1',
+        object: 'chat.completion',
+        created: 1,
+        model: 'deepseek/deepseek-v4.1-flash',
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: `Событие ${steel.id}\nФакт: «${steel.text}» [${steel.id}]` },
+            finish_reason: 'stop',
+          },
+        ],
+      }),
+    )
+  })
+  servers.push(server)
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Missing address')
+  const config = loadConfig({
+    NODE_ENV: 'test',
+    AGENT_PROVIDER: 'langgraph',
+    DATA_DIR: dataDir,
+    LLM_BASE_URL: `http://127.0.0.1:${address.port}/v1`,
+    LLM_API_KEY: 'offline-only',
+    LLM_GATEWAY_REQUEST_CAP_RUB: '1',
+  })
+  const createdAt = '2026-10-22T12:00:00.000Z'
+  const run: Run = {
+    id: randomUUID(),
+    userId: 'test',
+    companyId: 'U_1',
+    perspective: 'ceo',
+    input: { companyId: 'U_1', perspective: 'ceo', kind: 'refresh_feed' },
+    status: 'running',
+    createdAt,
+    updatedAt: createdAt,
+    resultIds: [],
+    error: null,
+    sequence: 1,
+    dataMode: 'research',
+  }
+  const result = await new LangGraphRuntime(config, catalog, data, {} as AnalyticsStore).execute(
+    run,
+    new AbortController().signal,
+    async () => {},
+  )
+  expect(result.insights.map((i) => i.event.id)).toEqual([steel.id])
+  expect(result.insights[0]!.relevance.version).toBe(ML_RANKING_VERSION)
+  expect(result.insights[0]!.relevance.reasons).toContain('industry')
 })

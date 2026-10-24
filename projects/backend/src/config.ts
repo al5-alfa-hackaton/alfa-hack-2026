@@ -48,6 +48,12 @@ const schema = z.object({
     .min(1)
     .max(MAX_RANKING_LIMIT)
     .default(DEFAULT_RANKING_LIMIT),
+  // The agent analyses RANKING_LIMIT events and the feed keeps FEED_CARDS of them, preferring events with consequences.
+  FEED_CARDS: z.coerce.number().int().min(1).max(MAX_RANKING_LIMIT).optional(),
+  AGENT_VERIFY: bool.default(false),
+  // Cron pattern for the worker's daily news refresh (ingest, full texts, tags); unset disables it.
+  NEWS_REFRESH_CRON: z.string().min(9).optional(),
+  NEWS_REFRESH_TZ: z.string().min(1).default('Europe/Moscow'),
   RUN_TIMEOUT_MS: z.coerce.number().int().min(1000).max(600000).default(180000),
   DAILY_BUDGET_RUB: z.coerce.number().min(0.01).multipleOf(0.01).max(500).default(500),
   RUN_RESERVATION_RUB: z.coerce.number().min(0.01).multipleOf(0.01).max(500).default(25),
@@ -56,6 +62,7 @@ const schema = z.object({
   AGENT_MAX_STEPS: z.coerce.number().int().min(1).max(12).default(6),
   AGENT_MAX_TOOL_CALLS: z.coerce.number().int().min(1).max(20).default(12),
 })
+export const modelCallMargin = (config: { AGENT_VERIFY: boolean }) => (config.AGENT_VERIFY ? 3 : 2)
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const config = schema.parse({
     ...(env.NODE_ENV === 'test' ? { AGENT_PROVIDER: 'fixture' } : {}),
@@ -86,10 +93,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     if (
       !config.ALLOW_UNCAPPED_LLM &&
       (!config.LLM_GATEWAY_REQUEST_CAP_RUB ||
-        config.LLM_GATEWAY_REQUEST_CAP_RUB * (config.AGENT_MAX_STEPS + 2) >
+        config.LLM_GATEWAY_REQUEST_CAP_RUB * (config.AGENT_MAX_STEPS + modelCallMargin(config)) >
           config.RUN_RESERVATION_RUB)
     )
-      throw new Error('Confirm the gateway hard request cap and reserve (maxSteps + 2) calls')
+      throw new Error('Confirm the gateway hard request cap and reserve (maxSteps + 2) calls, +1 with AGENT_VERIFY')
   }
   return {
     ...config,

@@ -11,7 +11,7 @@ export interface Documents {
     title: string
     publishedAt: string | null
     sourceKind: 'news' | 'bank'
-    contentExtent: 'page' | 'lead'
+    contentExtent: 'page' | 'lead' | 'full_text'
     page: number
     offset: number
     totalLength: number

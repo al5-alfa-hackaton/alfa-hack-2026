@@ -631,7 +631,7 @@ describe.skipIf(!enabled)('PostgreSQL + Redis + actual worker', () => {
         claimed.leaseToken,
       )
       expect(first.insights).toHaveLength(1)
-      expect(calls).toBe(2)
+      expect(calls).toBe(1)
       // Crash after durable finalization, before the SQL publication transaction.
       await runtime
         .database!.db.update(t.runs)
@@ -645,7 +645,7 @@ describe.skipIf(!enabled)('PostgreSQL + Redis + actual worker', () => {
         async () => {},
         lease.leaseToken,
       )
-      expect(calls).toBe(2)
+      expect(calls).toBe(1)
       expect(resumed.insights[0]!.summary).toBe(first.insights[0]!.summary)
       expect(resumed.insights[0]!.usage).toEqual(first.insights[0]!.usage)
       await runtime.store.finish(run.id, resumed, undefined, lease.leaseToken)

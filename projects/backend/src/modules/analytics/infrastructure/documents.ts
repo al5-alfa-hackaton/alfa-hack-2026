@@ -38,7 +38,7 @@ export class ResearchDocuments implements Documents {
       title: bank?.title ?? news!.title,
       publishedAt: bank?.publishedAt ?? news?.publishedAt ?? null,
       sourceKind: bank ? ('bank' as const) : ('news' as const),
-      contentExtent: bank ? ('page' as const) : ('lead' as const),
+      contentExtent: bank ? ('page' as const) : news?.textSource === 'article' ? ('full_text' as const) : ('lead' as const),
       page,
       offset,
       totalLength: content.length,

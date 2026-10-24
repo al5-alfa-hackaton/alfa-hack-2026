@@ -1,3 +1,4 @@
+import { FEATURE_IDS, isFeatureId } from '@alfa/agent'
 import { expect, it } from 'vitest'
 import { loadConfig } from '../src/config.js'
 import { createData } from '../src/composition/data.js'
@@ -23,4 +24,11 @@ it('summarizes all group industries and exposes guarantees', async () => {
   expect(group).not.toContain('Отрасль 5')
   expect(group).toContain('ещё 1')
   expect(group.split('; ')).toHaveLength(6)
+})
+
+it('uses only company features the agent knows', async () => {
+  const data = await createData(loadConfig({ NODE_ENV: 'test' }))
+  const ids = new ResearchCatalog(data, 'research').context('U_1').features.map((feature) => feature.id)
+  expect(ids.filter((id) => !isFeatureId(id))).toEqual([])
+  expect([...FEATURE_IDS].sort()).toEqual([...ids].sort())
 })

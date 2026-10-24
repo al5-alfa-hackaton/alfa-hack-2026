@@ -442,7 +442,7 @@ export function createAnalyticsRoutes(
               title: z.string(),
               publishedAt: z.string().nullable(),
               sourceKind: z.enum(['news', 'bank']),
-              contentExtent: z.enum(['page', 'lead']),
+              contentExtent: z.enum(['page', 'lead', 'full_text']),
               page: z.number().int(),
               offset: z.number().int(),
               totalLength: z.number().int(),
