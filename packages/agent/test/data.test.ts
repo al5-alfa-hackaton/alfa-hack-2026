@@ -1,9 +1,10 @@
+import { stripHtml } from '../src/data/text.js'
 import { describe, expect, it } from 'vitest'
 import { join } from 'node:path'
 import { locateSources } from '../src/agent/sources.js'
 import { chunkPage, normalizePageText } from '../src/data/bank.js'
 import { buildDataContext } from '../src/data/context.js'
-import { mergeNews, NEWS_SOURCES, parseFeed, type NewsItem } from '../src/data/news.js'
+import { isWarNews, mergeNews, NEWS_SOURCES, parseFeed, type NewsItem } from '../src/data/news.js'
 import { evidenceVerify, newsSearch } from '../src/tools/functions.js'
 import { bank, fixtureContext, news } from './helpers.js'
 
@@ -67,6 +68,12 @@ describe('news ingestion', () => {
     expect(merged.map((n) => n.id)).toEqual(['c', 'a'])
   })
 
+  it('drops news of sources removed from the feed list', () => {
+    const removed = { ...item('t', 'Новость удаленной ленты', '2026-10-21T10:00:00.000Z'), sourceId: 'tass' }
+    expect(mergeNews([removed, item('a', 'Рубль укрепился', '2026-10-20T10:00:00.000Z')], []).map((n) => n.id)).toEqual(['a'])
+    expect(NEWS_SOURCES.map((s) => s.id)).not.toContain('tass')
+  })
+
   it('includes the whole last day when until is a date', () => {
     const ids = (until: string) => newsSearch(buildDataContext(ctx.companies, bank, news), 'ставка сталь Китай', { until }).results.map((r) => r.documentId)
     expect(ids('2026-09-20')).toContain('news_steel')
@@ -115,3 +122,28 @@ describe('answer sources', () => {
   })
 })
 
+
+describe('HTML-сущности в тексте новостей', () => {
+  it('раскрывает типографские сущности и убирает мягкие переносы', () => {
+    expect(stripHtml('ставка&shy;&shy; 14% &ndash; рост &euro;5 &#39;А&#39;&hellip;')).toBe("ставка 14% – рост €5 'А'…")
+  })
+})
+
+describe('новости о боевых действиях', () => {
+  it('скрывает новости про БПЛА, СВО и войну и не задевает похожие слова', () => {
+    const t = (title: string) => isWarNews({ title })
+    expect(t('За ночь над Россией сбили 136 БПЛА')).toBe(true)
+    expect(t('Роструд: работу нашли 52% ветеранов СВО')).toBe(true)
+    expect(t('Потери портов превысили 200 млрд руб. из-за атак беспилотников')).toBe(true)
+    expect(t('Песков: переговоры по Украине пройдут в Абу-Даби')).toBe(true)
+    expect(t('Вьетнам заключил соглашение о свободной торговле')).toBe(false)
+    expect(t('Малые банки попросили освободить их от социальных вкладов')).toBe(false)
+    expect(t('Банк России сохранил ключевую ставку')).toBe(false)
+    expect(t('NYT: США и Израиль подготовят новые удары по Ирану')).toBe(true)
+    expect(t('Хуситы заявили об ударе по минобороны Саудовской Аравии')).toBe(true)
+    expect(t('КСИР сообщил о подрыве танкера в Ормузском проливе')).toBe(true)
+    expect(t('Россиянам посоветовали зафиксировать доходность по вкладам')).toBe(false)
+    expect(t('Пентагон планирует сеть агентов для экономической войны с Китаем')).toBe(false)
+    expect(t('Банк России рекомендовал поддержать предпринимателей, пострадавших от терактов')).toBe(false)
+  })
+})

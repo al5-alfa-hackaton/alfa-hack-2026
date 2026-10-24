@@ -1,5 +1,6 @@
 import { isActiveClient, type Company, type PaymentEdge } from '../data/companies.js'
 import type { DataContext } from '../data/context.js'
+import { isWarNews } from '../data/news.js'
 import { normalizeForMatch } from '../data/text.js'
 
 const LARGE_BUSINESS_REVENUE = 15e9
@@ -238,7 +239,8 @@ export function newsSearch(
   const filter = (n: DataContext['news'][number]) =>
     (!opts.since || (n.publishedAt ?? '') >= opts.since) &&
     (!until || (n.publishedAt ?? '') <= until) &&
-    (!opts.sourceIds?.length || opts.sourceIds.includes(n.sourceId))
+    (!opts.sourceIds?.length || opts.sourceIds.includes(n.sourceId)) &&
+    !isWarNews(n)
   return {
     corpusSize: ctx.news.length,
     results: ctx.newsIndex.search(query, opts.limit ?? 8, filter).map(({ item, score }) => ({

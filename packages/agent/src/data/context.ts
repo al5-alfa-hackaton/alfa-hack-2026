@@ -4,7 +4,7 @@ import { dataPaths, type Config } from '../config.js'
 import { Bm25 } from '../search/bm25.js'
 import type { BankChunk, BankCorpus } from './bank.js'
 import { loadCompanyStore, type CompanyStore } from './companies.js'
-import type { NewsItem } from './news.js'
+import { NEWS_SOURCE_IDS, type NewsItem } from './news.js'
 
 export type DataContext = {
   companies: CompanyStore
@@ -36,5 +36,12 @@ export async function loadDataContext(config: Pick<Config, 'DATA_DIR'>): Promise
     readJson<BankCorpus>(paths.bankChunks, { documents: [], chunks: [] }),
     readJson<NewsItem[]>(paths.news, []),
   ])
-  return buildDataContext(companies, bank, news)
+  return buildDataContext(companies, bank, news.filter((n) => NEWS_SOURCE_IDS.has(n.sourceId)))
+}
+
+export async function reloadNews(ctx: DataContext, config: Pick<Config, 'DATA_DIR'>): Promise<number> {
+  const news = (await readJson<NewsItem[]>(dataPaths(config).news, [])).filter((n) => NEWS_SOURCE_IDS.has(n.sourceId))
+  ctx.newsIndex = new Bm25(news, (n) => `${n.title} ${n.title} ${n.text}`)
+  ctx.news = news
+  return news.length
 }

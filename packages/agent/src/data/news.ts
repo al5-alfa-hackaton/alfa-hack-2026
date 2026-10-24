@@ -10,11 +10,53 @@ export const NEWS_SOURCES: NewsSource[] = [
   { id: 'interfax', name: 'Интерфакс', url: 'https://www.interfax.ru/rss.asp', kind: 'media' },
   { id: 'rbc', name: 'РБК', url: 'https://rssexport.rbc.ru/rbcnews/news/30/full.rss', kind: 'media' },
   { id: 'kommersant', name: 'Коммерсантъ', url: 'https://www.kommersant.ru/RSS/news.xml', kind: 'media' },
-  { id: 'tass', name: 'ТАСС', url: 'https://tass.ru/rss/v2.xml', kind: 'media' },
   { id: 'vedomosti', name: 'Ведомости', url: 'https://www.vedomosti.ru/rss/news', kind: 'media' },
-  { id: 'ria', name: 'РИА Новости', url: 'https://ria.ru/export/rss2/archive/index.xml', kind: 'media' },
   { id: 'banki', name: 'Банки.ру', url: 'https://www.banki.ru/xml/news.rss', kind: 'media' },
 ]
+
+export const NEWS_SOURCE_IDS = new Set(NEWS_SOURCES.map((s) => s.id))
+
+const WAR_TERMS = new RegExp(
+  [
+    '(?<![А-Яа-яЁёA-Za-z])(?:СВО|ВСУ|ПВО|ЗАЭС|БПЛА|ВС РФ|ВС России)(?![А-Яа-яЁёA-Za-z])',
+    'беспилотн',
+    '(?<![а-яё])дрон',
+    'обстрел',
+    'ракетн\\S* удар',
+    'боев\\S* действ',
+    'Минобороны',
+    'мобилизац',
+    'Украин',
+    'Киев',
+    'Зеленск',
+    'линии фронта',
+    'на фронте',
+    'удар\\S* по (?:объект|склад|судн|порт|железнодорож|энергетич)',
+    'атак\\S* (?:ВСУ|БПЛА|дрон)',
+    '[Мм]инобороны',
+    '[Хх]усит',
+    '(?<![А-Яа-яЁёA-Za-z])(?:КСИР|ХАМАС|ЦАХАЛ|НАТО|ВВС)(?![А-Яа-яЁёA-Za-z])',
+    '[Хх]езболл',
+    '[Аа]виаудар',
+    '[Пп]еремири',
+    '[Бб]оевик',
+    '[Вв]оенн\\S* (?:операц|конфликт|удар|действ|эскалац)',
+    '[Вв]ооруженн\\S* (?:сил|конфликт)',
+    '[Рр]акет',
+    '[Пп]огиб\\S* при (?:удар|атак|нападени)',
+    'сектор[аеу]? Газа|в Газе',
+    'Израил\\S* (?:удар|арми|нан[её]с|атак)',
+    'Иран\\S* (?:удар|пригроз|атак)|удар\\S* по Иран',
+    'Судан|Йемен|Ормузск',
+    '(?<!экономическ\\S{2} )(?<![а-яё])войн[аеуыо]? (?:в|во|с|против|на) [А-ЯЁ]',
+    'подготовк\\S* .*к войне',
+  ].join('|'),
+)
+
+export function isWarNews(item: Pick<NewsItem, 'title'>): boolean {
+  return WAR_TERMS.test(item.title)
+}
+
 
 const ALLOWED_HOSTS = new Set(NEWS_SOURCES.map((s) => new URL(s.url).host))
 const MAX_FEED_BYTES = 5 * 1024 * 1024
@@ -91,8 +133,9 @@ export async function fetchFeed(source: NewsSource, signal?: AbortSignal): Promi
 }
 
 export function mergeNews(existing: NewsItem[], incoming: NewsItem[]): NewsItem[] {
-  const byId = new Map(existing.map((n) => [n.id, n]))
-  const titles = new Set(existing.map((n) => normalizeForMatch(n.title)))
+  const kept = existing.filter((n) => NEWS_SOURCE_IDS.has(n.sourceId))
+  const byId = new Map(kept.map((n) => [n.id, n]))
+  const titles = new Set(kept.map((n) => normalizeForMatch(n.title)))
   for (const item of incoming) {
     const key = normalizeForMatch(item.title)
     if (byId.has(item.id) || titles.has(key)) continue
