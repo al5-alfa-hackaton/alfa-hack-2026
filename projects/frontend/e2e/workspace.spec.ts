@@ -66,6 +66,123 @@ test.describe('workspace backed by API and PostgreSQL', () => {
     await page.goto('/')
     await expect(page.locator('article')).toHaveCount(3)
   })
+
+  test('first visit hides empty controls and filtering saved items stays on the saved page', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/companies/U_1/insights?*', (route) =>
+      route.fulfill({ json: { items: [] } }),
+    )
+    await page.reload()
+    await expect(page.getByRole('button', { name: 'Обновить новости', exact: true })).toBeVisible()
+    await expect(page.getByRole('searchbox')).toHaveCount(0)
+    await expect(page.getByRole('radiogroup', { name: 'Фильтровать события' })).toHaveCount(0)
+    await expect(page.getByRole('complementary', { name: 'Контекст персонализации' })).toHaveCount(
+      0,
+    )
+    await page.unroute('**/api/v1/companies/U_1/insights?*')
+    await page.reload()
+    await page
+      .locator('article')
+      .first()
+      .getByRole('button', { name: /^Сохранить:/ })
+      .click()
+    await page.getByRole('link', { name: 'Сохранённое', exact: true }).click()
+    await page.getByRole('searchbox').fill('несуществующее событие')
+    await page.getByRole('button', { name: 'Сбросить фильтры' }).click()
+    await expect(page).toHaveURL(/saved/)
+    await expect(page.locator('article')).toHaveCount(1)
+  })
+
+  test('long conversation has one scroller and a visible composer on mobile', async ({ page }) => {
+    await page.route('**/api/v1/insights/*/conversation?*', (route) =>
+      route.fulfill({
+        json: {
+          items: Array.from({ length: 30 }, (_, i) => ({
+            id: String(i),
+            author: i % 2 ? 'assistant' : 'user',
+            text: 'Тестовое сообщение для проверки прокрутки. '.repeat(20),
+          })),
+        },
+      }),
+    )
+    await page.setViewportSize({ width: 390, height: 844 })
+    const reader = await openFirst(page)
+    await reader.getByRole('tab', { name: 'Вопросы', exact: true }).click()
+    const log = reader.getByRole('log')
+    await expect(log).toContainText('Тестовое сообщение')
+    await expect
+      .poll(() =>
+        reader.evaluate(
+          (root) =>
+            [...root.querySelectorAll('*')].filter(
+              (el) =>
+                el.scrollHeight > el.clientHeight + 5 &&
+                ['auto', 'scroll'].includes(getComputedStyle(el).overflowY),
+            ).length,
+        ),
+      )
+      .toBe(1)
+    const input = reader.getByLabel('Ваш вопрос')
+    await expect(input).toBeInViewport()
+    await log.evaluate((el) => {
+      el.firstElementChild!.scrollTop = 100
+    })
+    await expect(reader.getByRole('button', { name: 'К последнему сообщению' })).toBeVisible()
+    await reader.getByRole('button', { name: 'К последнему сообщению' }).click()
+    await expect(reader.getByRole('button', { name: 'К последнему сообщению' })).toHaveCount(0)
+    await expect(input).toBeInViewport()
+  })
+
+  test('document pagination keeps the reader and controls stable while fetching', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/documents/*?*', async (route) => {
+      const offset = Number(new URL(route.request().url()).searchParams.get('offset') ?? 0)
+      await new Promise((resolve) => setTimeout(resolve, offset ? 600 : 0))
+      await route.fulfill({
+        json: {
+          documentId: 'ui-pagination-test',
+          title: 'Длинный тестовый документ',
+          page: 1,
+          offset,
+          totalLength: 8500,
+          text: (offset === 0
+            ? 'Первый фрагмент. '
+            : offset === 4000
+              ? 'Второй фрагмент. '
+              : 'Последний фрагмент. '
+          ).repeat(offset === 8000 ? 20 : 250),
+          externalUrl: null,
+          publishedAt: null,
+          sourceKind: 'news',
+          contentExtent: 'lead',
+        },
+      })
+    })
+    const reader = await openFirst(page)
+    await reader.getByRole('tab', { name: /Источники/ }).click()
+    await reader
+      .getByRole('button', { name: /Новостная публикация/ })
+      .first()
+      .click()
+    const next = reader.getByRole('button', { name: 'Следующий фрагмент' }).first()
+    const previous = reader.getByRole('button', { name: 'Предыдущий фрагмент' }).first()
+    await expect(reader.getByLabel('Текст фрагмента').first()).toContainText('Первый фрагмент')
+    const before = await next.boundingBox()
+    await next.click()
+    await expect(next).toBeDisabled()
+    await expect(reader.getByLabel('Текст фрагмента').first()).toContainText('Первый фрагмент')
+    await expect(reader.getByLabel('Текст фрагмента').first()).toContainText('Второй фрагмент')
+    expect((await next.boundingBox())?.y).toBe(before?.y)
+    await next.click()
+    await expect(reader.getByLabel('Текст фрагмента').first()).toContainText('Последний фрагмент')
+    await expect(next).toBeDisabled()
+    await previous.click()
+    await expect(reader.getByLabel('Текст фрагмента').first()).toContainText('Второй фрагмент')
+    await expect(reader).toBeVisible()
+  })
+
   test('searches real API results and exports only the selected events', async ({ page }) => {
     await expect(page.getByText('Демо', { exact: true })).toHaveCount(0)
     await expect(page.getByRole('button', { name: /Сценарии/ })).toHaveCount(0)
@@ -128,6 +245,7 @@ test.describe('workspace backed by API and PostgreSQL', () => {
     await reader.getByLabel('Ваш вопрос').fill('Какие риски?')
     await reader.getByRole('button', { name: 'Отправить вопрос' }).click()
     await expect(reader.getByRole('log')).toContainText('Аналитик', { timeout: 15000 })
+    await reader.getByRole('tab', { name: 'Разбор', exact: true }).click()
     await reader.getByRole('radio', { name: 'Полезно', exact: true }).click()
     await expect(reader.getByRole('radio', { name: 'Полезно', exact: true })).toHaveAttribute(
       'aria-checked',
@@ -143,6 +261,7 @@ test.describe('workspace backed by API and PostgreSQL', () => {
     )
     await page.getByRole('tab', { name: 'Вопросы', exact: true }).click()
     await expect(page.getByRole('log')).toContainText('Какие риски?')
+    await page.getByRole('tab', { name: 'Разбор', exact: true }).click()
     await expect(page.getByRole('button', { name: 'Изменить замечание' })).toBeVisible()
     await page.getByRole('tab', { name: 'Ход анализа', exact: true }).click()
     await expect(page.getByRole('region', { name: 'Журнал анализа' })).toContainText(
@@ -244,7 +363,7 @@ test('creates a new company profile, runs personalization, and preserves it afte
   expect(me.companyIds).toHaveLength(1)
   expect(me.companyIds[0]).toMatch(/^company_/)
   expect((await page.request.get('/api/v1/companies/U_1/context')).status()).toBe(404)
-  await page.getByRole('button', { name: 'Обновить сводку', exact: true }).click()
+  await page.getByRole('button', { name: 'Обновить новости', exact: true }).click()
   await expect(page.locator('article').first()).toBeVisible({ timeout: 15000 })
   await page.getByRole('link', { name: 'Контекст компании', exact: true }).click()
   await expect(

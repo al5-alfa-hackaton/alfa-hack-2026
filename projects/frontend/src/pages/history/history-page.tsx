@@ -96,6 +96,13 @@ export function HistoryPage() {
                     )}
                   </TableCell>
                   <TableCell>
+                    {run.input.insightId && !runActive(run.status) && (
+                      <Button asChild variant="ghost" size="sm">
+                        <Link to="/" search={{ insight: run.input.insightId }}>
+                          Открыть разбор
+                        </Link>
+                      </Button>
+                    )}
                     {runActive(run.status) && (
                       <Button
                         size="sm"

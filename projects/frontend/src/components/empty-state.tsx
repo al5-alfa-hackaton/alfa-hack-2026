@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { cn } from 'cn'
 import {
   Empty,
   EmptyContent,
@@ -11,13 +12,15 @@ export function EmptyState({
   title,
   description,
   action,
+  className,
 }: {
   title: string
   description: string
   action?: ReactNode
+  className?: string
 }) {
   return (
-    <Empty className="min-h-60 border bg-card">
+    <Empty className={cn('min-h-60 border bg-card', className)}>
       <EmptyHeader>
         <EmptyTitle>{title}</EmptyTitle>
         <EmptyDescription>{description}</EmptyDescription>

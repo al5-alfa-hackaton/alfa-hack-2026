@@ -17,18 +17,18 @@
   --popover: #ffffff;
   --popover-foreground: #000000;
   --brand: #ef3124;
-  --primary: #ce2a1f;
+  --primary: #e32b20;
   --primary-foreground: #ffffff;
   --secondary: #f2f2f3;
   --secondary-foreground: #000000;
   --muted: #f4f4f5;
   --muted-foreground: #62646b;
-  --accent: #eeeef0;
+  --accent: #fff0ee;
   --accent-foreground: #202123;
   --destructive: #b91c1c;
   --border: #e4e5e8;
   --input: #9699a1;
-  --ring: #ef3124;
+  --ring: #737780;
   --success: #e8f3ec;
   --success-foreground: #25633d;
   --success-muted: #e8f3ec;
@@ -49,7 +49,7 @@
   --sidebar-accent: #e9e9ec;
   --sidebar-accent-foreground: #202123;
   --sidebar-border: #e4e5e8;
-  --sidebar-ring: #ef3124;
+  --sidebar-ring: #737780;
   --radius: 0.5rem;
 }
 
@@ -64,7 +64,7 @@
   --popover: #242429;
   --popover-foreground: #ebebeb;
   --brand: #ef3124;
-  --primary: #ce2a1f;
+  --primary: #e32b20;
   --primary-foreground: #ffffff;
   --secondary: #2b2b31;
   --secondary-foreground: #ebebeb;
@@ -75,7 +75,7 @@
   --destructive: #ff9292;
   --border: #3b3b44;
   --input: #777780;
-  --ring: #ff958b;
+  --ring: #a3a6ae;
   --success: #e8f3ec;
   --success-foreground: #25633d;
   --success-muted: #e8f3ec;
@@ -96,7 +96,7 @@
   --sidebar-accent: #3c2526;
   --sidebar-accent-foreground: #ffb6ae;
   --sidebar-border: #3b3b44;
-  --sidebar-ring: #ff958b;
+  --sidebar-ring: #a3a6ae;
   --radius: 0.5rem;
 }
 
@@ -183,7 +183,7 @@
     background: #ef312426;
   }
 }
-/* At 1440: 224px sidebar + 8px inset + 1208px sheet; its content shares one 36px gutter.
+/* Expanded sidebar is 280px; content shares one 36px gutter on large screens.
    Feed: available width - 248px context - 32px gap. No nested card grid. */
 .news-row {
   padding: 22px 0;
@@ -250,6 +250,82 @@
     padding-block: 20px;
   }
 }
+/* Motion stays local to content: navigation and the reader's fixed controls do not jump. */
+@keyframes screen-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes refresh-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes content-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .refresh-news-action:hover:not(:disabled) .refresh-news-icon,
+  .refresh-news-action:focus-visible .refresh-news-icon {
+    animation: refresh-turn 1.2s linear infinite;
+  }
+  .screen-enter {
+    animation: screen-enter 220ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  .state-enter,
+  [data-slot='tabs-content'][data-state='active'] {
+    animation: content-enter 180ms ease-out;
+  }
+  .news-row {
+    animation: screen-enter 200ms ease-out;
+    transition: background-color 160ms ease;
+  }
+  [data-slot='button'],
+  [data-slot='sidebar-menu-button'],
+  [data-slot='tabs-trigger'],
+  [data-slot='toggle-group-item'] {
+    transition-property: background-color, color, border-color, box-shadow, opacity, transform;
+    transition-duration: 140ms;
+    transition-timing-function: ease-out;
+  }
+  [data-slot='button']:not([data-variant='link']):not(:disabled):not(
+      [aria-disabled='true']
+    ):active {
+    transform: scale(0.97);
+    transition-duration: 70ms;
+  }
+  [data-slot='sidebar-menu-button']:active,
+  [data-slot='toggle-group-item']:not(:disabled):active {
+    transform: scale(0.98);
+  }
+  .reader-sheet[data-state='open'] {
+    animation-duration: 240ms;
+  }
+  .reader-sheet[data-state='closed'] {
+    animation-duration: 180ms;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .theme-changing,
+  .theme-changing *,
+  .theme-changing *::before,
+  .theme-changing *::after {
+    transition:
+      background-color 350ms ease,
+      border-color 350ms ease,
+      box-shadow 350ms ease !important;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -258,4 +334,33 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Clickable controls advertise their interaction on desktop. */
+:where(
+    button,
+    a[href],
+    [role='button'],
+    [role='tab'],
+    [role='radio'],
+    [role='checkbox'],
+    [role='switch'],
+    [role='combobox'],
+    [role='menuitem'],
+    [role='menuitemradio'],
+    [role='menuitemcheckbox'],
+    summary
+  ):not(:disabled):not([aria-disabled='true']):not([data-disabled]) {
+  cursor: pointer;
+}
+:where(
+  button,
+  [role='button'],
+  [role='tab'],
+  [role='radio'],
+  [role='checkbox'],
+  [role='switch'],
+  [role='combobox']
+):is(:disabled, [aria-disabled='true'], [data-disabled]) {
+  cursor: default;
 }

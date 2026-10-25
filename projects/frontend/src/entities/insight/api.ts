@@ -1,4 +1,10 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { api, unwrap, type operations } from '@/shared/lib'
 
 export type Insight =
@@ -112,6 +118,7 @@ export function useTrace(item: Insight) {
 export function useDocument(documentId: string, page: number, offset: number) {
   return useQuery({
     queryKey: ['document', documentId, page, offset],
+    placeholderData: keepPreviousData,
     queryFn: async ({ signal }) =>
       unwrap(
         await api.GET('/v1/documents/{documentId}', {

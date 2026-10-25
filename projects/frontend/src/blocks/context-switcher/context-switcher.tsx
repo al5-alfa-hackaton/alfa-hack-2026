@@ -30,17 +30,17 @@ export function ContextSwitcher() {
           disabled={!companies.length}
         >
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold">
+            <span className="block whitespace-normal break-words text-sm font-semibold leading-5">
               {company?.displayName ?? 'Нет компаний'}
             </span>
-            <span className="mt-1 block truncate text-xs font-normal text-muted-foreground">
+            <span className="mt-1 block whitespace-normal break-words text-xs font-normal leading-5 text-muted-foreground">
               {roles[session.role]}
             </span>
           </span>
           <ChevronsUpDown className="size-3.5 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side="bottom" className="w-72">
+      <DropdownMenuContent align="start" side="bottom" className="w-80 max-w-[calc(100vw-2rem)]">
         <DropdownMenuLabel>Компания</DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={session.company}
@@ -48,7 +48,7 @@ export function ContextSwitcher() {
         >
           {companies.map((c) => (
             <DropdownMenuRadioItem key={c.id} value={c.id}>
-              <span>
+              <span className="min-w-0 whitespace-normal break-words">
                 {c.displayName}
                 <span className="block text-xs font-normal text-muted-foreground">
                   {c.industry}
@@ -64,7 +64,7 @@ export function ContextSwitcher() {
           onValueChange={(role) => change({ role: role as Role })}
         >
           {Object.entries(roles).map(([id, label]) => (
-            <DropdownMenuRadioItem key={id} value={id}>
+            <DropdownMenuRadioItem key={id} value={id} className="whitespace-normal">
               {label}
             </DropdownMenuRadioItem>
           ))}

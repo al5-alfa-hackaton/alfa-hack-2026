@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { MessageSquare } from 'lucide-react'
 import { roles, featureLabel, relevanceReason } from '@/entities/company'
 import { useTrace, type Insight } from '@/entities/insight'
@@ -70,15 +70,37 @@ function TracePanel({ item }: { item: Insight }) {
 }
 export function InsightReader({
   item,
+  open,
+  onClosed,
   onClose,
   onRestoreFocus,
 }: {
   item: Insight
+  open: boolean
+  onClosed: () => void
   onClose: () => void
   onRestoreFocus: () => void
 }) {
   const { session, company, context } = useWorkspace()
+  const sheet = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const viewport = window.visualViewport
+    if (!viewport) return
+    const resize = () => {
+      if (!sheet.current) return
+      sheet.current.style.height = `${viewport.height}px`
+      sheet.current.style.top = `${viewport.offsetTop}px`
+    }
+    resize()
+    viewport.addEventListener('resize', resize)
+    viewport.addEventListener('scroll', resize)
+    return () => {
+      viewport.removeEventListener('resize', resize)
+      viewport.removeEventListener('scroll', resize)
+    }
+  }, [])
   const [tab, setTab] = useState('analysis')
+  const [source, setSource] = useState<string>()
   const featureLabels = new Map(context.data?.features.map((f) => [f.id, f.label]))
   const claims = (kind: Insight['claims'][number]['kind']) =>
     item.claims.filter((c) => c.kind === kind)
@@ -97,7 +119,10 @@ export function InsightReader({
                     key={id}
                     variant="link"
                     className="h-auto px-1 text-xs"
-                    onClick={() => setTab('sources')}
+                    onClick={() => {
+                      setSource(id)
+                      setTab('sources')
+                    }}
                     aria-label={'Открыть источник ' + id}
                   >
                     [{id}]
@@ -129,33 +154,35 @@ export function InsightReader({
   }
   return (
     <Sheet
-      open
+      open={open}
       onOpenChange={(v) => {
         if (!v) onClose()
       }}
     >
       <SheetContent
+        ref={sheet}
         onCloseAutoFocus={(event) => {
           event.preventDefault()
           onRestoreFocus()
+          onClosed()
         }}
-        className="w-full gap-0 overflow-y-auto p-0 sm:max-w-[820px]"
+        className="reader-sheet h-dvh w-full gap-0 overflow-hidden p-0 sm:max-w-[820px]"
       >
-        <SheetHeader className="gap-3 border-b px-5 pb-5 pr-14 pt-7 sm:px-9 sm:pr-14">
+        <SheetHeader className="shrink-0 gap-2 border-b px-5 py-4 pr-14 sm:px-9 sm:pr-14">
           <p className="text-xs text-muted-foreground">
             Сформировано{' '}
             {new Date(item.generatedAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} МСК
           </p>
-          <SheetTitle className="max-w-2xl text-2xl font-semibold leading-8 tracking-tight">
+          <SheetTitle className="line-clamp-3 max-w-2xl text-lg font-semibold leading-6 tracking-tight sm:text-xl sm:leading-7">
             {item.event.title}
           </SheetTitle>
           <SheetDescription>
             {company?.displayName} · {roles[session.role]}
           </SheetDescription>
         </SheetHeader>
-        <div className="px-5 pb-7 sm:px-9">
-          <Tabs value={tab} onValueChange={setTab}>
-            <TabsList className="reader-tabs mb-7 mt-2 h-12 w-full justify-start gap-5 overflow-x-auto rounded-none border-b bg-transparent p-0 sm:gap-7">
+        <div className="flex min-h-0 flex-1 flex-col">
+          <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1 gap-0">
+            <TabsList className="reader-tabs m-0 h-12 w-full shrink-0 justify-start gap-5 overflow-x-auto rounded-none border-b bg-transparent px-5 sm:gap-7 sm:px-9">
               <TabsTrigger value="analysis">Разбор</TabsTrigger>
               <TabsTrigger value="sources">
                 Источники
@@ -164,10 +191,17 @@ export function InsightReader({
               <TabsTrigger value="trace">Ход анализа</TabsTrigger>
               <TabsTrigger value="questions">Вопросы</TabsTrigger>
             </TabsList>
-            <TabsContent value="analysis" className="space-y-6">
+            <TabsContent
+              value="analysis"
+              className="min-h-0 overflow-y-auto overscroll-contain px-5 py-6 sm:px-9 space-y-6"
+            >
               {item.status !== 'complete' && (
                 <Badge variant="outline">Разбор с ограничениями</Badge>
               )}
+              <section className="rounded-xl bg-muted/40 p-4">
+                <h3 className="mb-2 text-sm font-semibold">Главное для вашей компании</h3>
+                <p className="text-sm leading-7">{item.summary}</p>
+              </section>
               {claimSection('fact', 'Что произошло')}
               {claimSection('ai_inference', 'AI-интерпретация для вашей компании')}
               <section>
@@ -235,18 +269,24 @@ export function InsightReader({
                 </Button>
                 <SaveButton item={item} />
               </div>
+              <FeedbackPanel item={item} />
             </TabsContent>
-            <TabsContent value="sources">
-              <SourcesPanel item={item} />
+            <TabsContent
+              value="sources"
+              className="min-h-0 overflow-y-auto overscroll-contain px-5 py-6 sm:px-9"
+            >
+              <SourcesPanel item={item} selectedSource={source} />
             </TabsContent>
-            <TabsContent value="trace">
+            <TabsContent
+              value="trace"
+              className="min-h-0 overflow-y-auto overscroll-contain px-5 py-6 sm:px-9"
+            >
               <TracePanel item={item} />
             </TabsContent>
-            <TabsContent value="questions">
+            <TabsContent value="questions" className="min-h-0 overflow-hidden">
               <ConversationPanel item={item} />
             </TabsContent>
           </Tabs>
-          <FeedbackPanel item={item} />
         </div>
       </SheetContent>
     </Sheet>
