@@ -181,7 +181,7 @@ export function InsightReader({
           </SheetDescription>
         </SheetHeader>
         <div className="flex min-h-0 flex-1 flex-col">
-          <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1 gap-0">
+          <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1 gap-0 overflow-x-hidden">
             <TabsList className="reader-tabs m-0 h-12 w-full shrink-0 justify-start gap-5 overflow-x-hidden rounded-none border-b bg-transparent px-5 sm:gap-7 sm:px-9">
               <TabsTrigger value="analysis">Разбор</TabsTrigger>
               <TabsTrigger value="sources">

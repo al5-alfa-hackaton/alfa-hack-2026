@@ -87,16 +87,6 @@ Research и backend используют LangChain/LangGraph, CSV/RSS/PDF/OCR, B
 
 Локальный OCR использует установленный Tesseract (Apache-2.0). Языковые файлы rus/eng в этой среде — tessdata_fast / системная поставка; загрузка rus: https://github.com/tesseract-ocr/tessdata_fast (Apache-2.0). Бинарники и обученные данные в репозиторий не включены.
 
-## Данные на снимках
-
-Frontend browser fixtures удалены. Снимки README показывают интерфейс с обезличенным набором организаторов и явно недоступным новым анализом до настройки LLM. Приведены только anonymous company ID и признаки из набора; исходные CSV/PDF/OCR не публикуются в Git. Права на материалы остаются у правообладателей. Использование фирменного знака не предоставляет отдельную лицензию на товарный знак.
-
-Manrope распространяется по SIL Open Font License 1.1; fontsource package доставляет font files локально. Лицензию шрифта сохранять при дистрибуции.
-
-## Дизайн-руководства
-
-Использованы Taste Skill (https://github.com/Leonxlnx/taste-skill) и Better Web UI (https://github.com/aladicf/better-web-ui). Их исходники не включены в приложение. Better Web UI имеет собственную лицензию с дополнительными ограничениями и не обозначается как plain MIT. Ссылки и версии руководств зафиксированы в specs/09-ui-review.md; проектные заметки — .better-web-ui.md.
-
 
 ## prompt-kit chat components
 
