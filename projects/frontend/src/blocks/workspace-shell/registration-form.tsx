@@ -15,6 +15,9 @@ import {
 } from '@/components/ui/select'
 
 type Values = RegistrationInput
+// Empty inputs stay null: react-hook-form also passes the null default here, and Number(null) is 0.
+const optionalNumber = (v: unknown) =>
+  v === '' || v === null || v === undefined ? null : Number(v)
 const products = [
   ['loans', 'Кредиты'],
   ['leasing', 'Лизинг'],
@@ -31,7 +34,9 @@ export function RegistrationForm() {
   const [error, setError] = useState('')
   const [countries, setCountries] = useState('')
   const form = useForm<Values>({
-    mode: 'onTouched',
+    // Step 1 is validated in next(); re-validating on blur would shift the layout under the click.
+    mode: 'onSubmit',
+    reValidateMode: 'onSubmit',
     defaultValues: {
       username: '',
       company: {
@@ -208,7 +213,7 @@ export function RegistrationForm() {
                 placeholder="Необязательно"
                 aria-invalid={!!errors.company?.revenue}
                 {...form.register('company.revenue', {
-                  setValueAs: (v) => (v === '' ? null : Number(v)),
+                  setValueAs: optionalNumber,
                   validate: (value) =>
                     value === null || value === undefined || Number.isNaN(value)
                       ? true
@@ -236,7 +241,7 @@ export function RegistrationForm() {
                 placeholder="Необязательно"
                 aria-invalid={!!errors.company?.employees}
                 {...form.register('company.employees', {
-                  setValueAs: (v) => (v === '' ? null : Number(v)),
+                  setValueAs: optionalNumber,
                   validate: (value) =>
                     value === null || value === undefined || Number.isNaN(value)
                       ? true
