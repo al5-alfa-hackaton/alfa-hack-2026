@@ -4,7 +4,7 @@ import { AppError, type Principal } from '../shared/kernel/errors.js'
 import type { Config } from '../config.js'
 import type { Runtime } from '../composition/runtime.js'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
-import { registrationSchema, usernameSchema } from '../modules/identity/index.js'
+import { registrationSchema } from '../modules/identity/index.js'
 import { z } from 'zod'
 const cookieName = 'alfa_session'
 const ttl = 8 * 60 * 60
@@ -32,6 +32,13 @@ export function registerAuth(app: FastifyInstance, config: Config, runtime: Runt
       throw new AppError('unauthorized', 'Недопустимый источник запроса')
   }
   const sessionSchema = z.object({ id: z.string(), expiresAt: z.iso.datetime() })
+  const accountSchema = z.object({
+    id: z.string(),
+    username: z.string(),
+    companyId: z.string(),
+    companyName: z.string(),
+    source: z.enum(['dataset', 'custom']),
+  })
   function session(reply: FastifyReply, id: string, hash: string) {
     const expires = Date.now() + ttl * 1000
     reply.setCookie(cookieName, JSON.stringify({ id, expires, stamp: stamp(hash) }), {
@@ -43,8 +50,9 @@ export function registerAuth(app: FastifyInstance, config: Config, runtime: Runt
   }
   app.addHook('preHandler', async (req) => {
     if (!req.url.startsWith('/v1/')) return
+    if (req.routeOptions.url === '/v1/accounts') return
     if (req.routeOptions.url === '/v1/session' || req.routeOptions.url === '/v1/registrations') {
-      checkOrigin(req)
+      if (req.method !== 'GET') checkOrigin(req)
       return
     }
     const header = req.headers.authorization
@@ -83,6 +91,20 @@ export function registerAuth(app: FastifyInstance, config: Config, runtime: Runt
   })
   app.register(async (child) => {
     const api = child.withTypeProvider<ZodTypeProvider>()
+    api.get(
+      '/v1/accounts',
+      {
+        config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+        schema: {
+          operationId: 'searchAccounts',
+          tags: ['workspace'],
+          security: [],
+          querystring: z.object({ q: z.string().trim().max(80).default('') }),
+          response: { 200: z.object({ items: z.array(accountSchema) }) },
+        },
+      },
+      async (req) => ({ items: await runtime.identity.search(req.query.q) }),
+    )
     api.post(
       '/v1/session',
       {
@@ -92,7 +114,7 @@ export function registerAuth(app: FastifyInstance, config: Config, runtime: Runt
           tags: ['workspace'],
           security: [],
           body: z.union([
-            z.object({ username: usernameSchema, password: z.string().min(1).max(128) }).strict(),
+            z.object({ accountId: z.string().min(1).max(100) }).strict(),
             z.object({ token: z.string().min(32).max(4096) }).strict(),
           ]),
           response: { 200: sessionSchema },
@@ -104,8 +126,8 @@ export function registerAuth(app: FastifyInstance, config: Config, runtime: Runt
           if (!user) throw new AppError('unauthorized', 'Ключ доступа не принят')
           return session(reply, user.id, user.token)
         }
-        const user = await runtime.identity.authenticate(req.body.username, req.body.password)
-        return session(reply, user.id, user.passwordHash)
+        const user = await runtime.identity.open(req.body.accountId)
+        return session(reply, user.id, user.sessionVersion)
       },
     )
     api.post(
@@ -124,7 +146,7 @@ export function registerAuth(app: FastifyInstance, config: Config, runtime: Runt
         const user = await runtime.identity.register(req.body)
         return reply
           .code(201)
-          .send({ ...session(reply, user.id, user.passwordHash), companyId: user.companyIds[0]! })
+          .send({ ...session(reply, user.id, user.sessionVersion), companyId: user.companyIds[0]! })
       },
     )
     api.delete(

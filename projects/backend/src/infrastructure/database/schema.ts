@@ -152,7 +152,7 @@ export const users = pgTable(
   {
     id: text('id').primaryKey(),
     username: text('username').notNull().unique(),
-    passwordHash: text('password_hash').notNull(),
+    sessionVersion: text('session_version').notNull(),
     source: text('source', { enum: ['dataset', 'custom'] }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

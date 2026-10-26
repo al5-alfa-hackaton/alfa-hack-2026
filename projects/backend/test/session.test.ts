@@ -40,6 +40,7 @@ describe('browser sessions without SSO', () => {
     expect(logout.cookies[0]?.value).toBe('')
     expect((await app.inject('/v1/me')).statusCode).toBe(401)
     expect(app.swagger().paths).toHaveProperty('/v1/session')
+    expect(app.swagger().paths).toHaveProperty('/v1/accounts')
   })
   it('rejects bad keys, altered cookies, expired sessions and foreign-origin mutations', async () => {
     const app = await create()

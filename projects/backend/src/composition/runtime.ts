@@ -14,7 +14,6 @@ import { CheckpointRuntime } from '../modules/analytics/infrastructure/checkpoin
 import { AppError } from '../shared/kernel/errors.js'
 import { Identity, type IdentityStore } from '../modules/identity/index.js'
 import { PostgresIdentityStore } from '../modules/identity/infrastructure/postgres-identity-store.js'
-import { passwords } from '../modules/identity/infrastructure/passwords.js'
 import { identityDirectory } from './identity-directory.js'
 export async function compose(config: Config) {
   const data = await createData(config),
@@ -29,13 +28,13 @@ export async function compose(config: Config) {
     ? new PostgresIdentityStore(database.db)
     : {
         byId: async () => undefined,
-        byUsername: async () => undefined,
+        search: async () => [],
         register: async () => {
           throw new AppError('unavailable', 'Регистрация временно недоступна', true)
         },
         customCompanies: async () => [],
       }
-  const identity = new Identity(identityStore, passwords, config.ALLOW_DATASET_LOGIN)
+  const identity = new Identity(identityStore)
   const hydrate = identityDirectory(identity, data, names)
   const principalFor = async (id: string) => {
     const legacy = config.accounts.find((user) => user.id === id)
@@ -43,7 +42,7 @@ export async function compose(config: Config) {
       return { principal: { id, companyIds: legacy.companyIds }, hash: legacy.token, legacy: true }
     const user = await identity.resolve(id)
     return user
-      ? { principal: { id, companyIds: user.companyIds }, hash: user.passwordHash, legacy: false }
+      ? { principal: { id, companyIds: user.companyIds }, hash: user.sessionVersion, legacy: false }
       : undefined
   }
   const unavailable = new Proxy({} as PostgresStore, {
@@ -79,7 +78,12 @@ export async function compose(config: Config) {
             catalog,
             data,
             store,
-            database ? new CheckpointRuntime(database.pool, config.AGENT_MAX_STEPS + modelCallMargin(config)) : undefined,
+            database
+              ? new CheckpointRuntime(
+                  database.pool,
+                  config.AGENT_MAX_STEPS + modelCallMargin(config),
+                )
+              : undefined,
           )
   return {
     data,

@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-type Values = RegistrationInput & { passwordConfirmation: string }
+type Values = RegistrationInput
 const products = [
   ['loans', 'Кредиты'],
   ['leasing', 'Лизинг'],
@@ -34,8 +34,6 @@ export function RegistrationForm() {
     mode: 'onTouched',
     defaultValues: {
       username: '',
-      password: '',
-      passwordConfirmation: '',
       company: {
         name: '',
         industry: '',
@@ -56,34 +54,67 @@ export function RegistrationForm() {
     },
   })
   const errors = form.formState.errors
-  async function next() {
-    const valid = await form.trigger([
-      'username',
-      'password',
-      'passwordConfirmation',
-      'company.name',
-      'company.industry',
-      'company.region',
-      'company.revenue',
-      'company.employees',
-    ])
-    if (valid) setStep(2)
+  function next() {
+    const { username, company } = form.getValues()
+    form.clearErrors()
+    if (!username.trim()) form.setError('username', { message: 'Укажите логин' })
+    else if (username.trim().length < 3) form.setError('username', { message: 'От 3 символов' })
+    else if (!/^[a-z0-9][a-z0-9_.-]*$/i.test(username.trim()))
+      form.setError('username', {
+        message: 'Латинские буквы, цифры, точка, дефис или подчёркивание',
+      })
+    else if (username.trim().toLowerCase().startsWith('client_'))
+      form.setError('username', { message: 'Выберите имя без префикса client_' })
+    if (company.name.trim().length < 2)
+      form.setError('company.name', { message: 'Обязательное поле' })
+    if (company.industry.trim().length < 2)
+      form.setError('company.industry', { message: 'Обязательное поле' })
+    if (company.region.trim().length < 2)
+      form.setError('company.region', { message: 'Обязательное поле' })
+    const { revenue, employees } = company
+    if (revenue !== null && revenue !== undefined && (revenue < 0 || revenue > 1e15)) {
+      form.setError('company.revenue', {
+        message: revenue < 0 ? 'Выручка не может быть отрицательной' : 'Максимум — 1 000 трлн ₽',
+      })
+      return
+    }
+    if (
+      employees !== null &&
+      employees !== undefined &&
+      !Number.isNaN(employees) &&
+      (employees < 1 || employees > 10000000 || !Number.isInteger(employees))
+    ) {
+      form.setError('company.employees', { message: 'Укажите целое число от 1 до 10 млн' })
+      return
+    }
+    if (
+      username.trim().length >= 3 &&
+      /^[a-z0-9][a-z0-9_.-]*$/i.test(username.trim()) &&
+      !username.trim().toLowerCase().startsWith('client_') &&
+      company.name.trim().length >= 2 &&
+      company.industry.trim().length >= 2 &&
+      company.region.trim().length >= 2
+    )
+      setStep(2)
   }
   return (
     <form
       className="space-y-5"
       onSubmit={form.handleSubmit(async (values) => {
         if (step === 1) {
-          await next()
+          next()
           return
         }
         setError('')
-        const { passwordConfirmation: _, ...input } = values
         try {
           await createAccount({
-            ...input,
+            ...values,
             company: {
-              ...input.company,
+              ...values.company,
+              revenue: Number.isFinite(values.company.revenue) ? values.company.revenue : null,
+              employees: Number.isFinite(values.company.employees)
+                ? values.company.employees
+                : null,
               customsCountries: [
                 ...new Set(
                   countries
@@ -105,12 +136,12 @@ export function RegistrationForm() {
       {step === 1 ? (
         <>
           <fieldset className="grid gap-4 sm:grid-cols-2">
-            <legend className="mb-4 text-sm font-medium">Доступ к аккаунту</legend>
+            <legend className="mb-4 text-sm font-medium">Профиль пользователя</legend>
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="new-username">Логин</Label>
+              <Label htmlFor="new-username">Имя профиля</Label>
               <Input
                 id="new-username"
-                autoComplete="username"
+                autoComplete="nickname"
                 autoCapitalize="none"
                 maxLength={64}
                 aria-invalid={!!errors.username}
@@ -126,45 +157,11 @@ export function RegistrationForm() {
                 })}
               />
               <p className="text-xs text-muted-foreground">
-                От 3 символов: латинские буквы и цифры.
+                По этому имени профиль можно будет найти при следующем входе.
               </p>
               {errors.username && (
                 <p role="alert" className="text-xs text-destructive">
                   {errors.username.message}
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-password">Пароль</Label>
-              <Input
-                id="new-password"
-                type="password"
-                autoComplete="new-password"
-                maxLength={128}
-                aria-invalid={!!errors.password}
-                {...form.register('password', {
-                  required: 'Укажите пароль',
-                  minLength: { value: 10, message: 'Не менее 10 символов' },
-                })}
-              />
-              <p className="text-xs text-muted-foreground">
-                {errors.password?.message ?? 'Не менее 10 символов.'}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">Повторите пароль</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                autoComplete="new-password"
-                aria-invalid={!!errors.passwordConfirmation}
-                {...form.register('passwordConfirmation', {
-                  validate: (v) => v === form.getValues('password') || 'Пароли не совпадают',
-                })}
-              />
-              {errors.passwordConfirmation && (
-                <p role="alert" className="text-xs text-destructive">
-                  {errors.passwordConfirmation.message}
                 </p>
               )}
             </div>
@@ -212,8 +209,14 @@ export function RegistrationForm() {
                 aria-invalid={!!errors.company?.revenue}
                 {...form.register('company.revenue', {
                   setValueAs: (v) => (v === '' ? null : Number(v)),
-                  min: { value: 0, message: 'Выручка не может быть отрицательной' },
-                  max: { value: 1e15, message: 'Максимальная выручка — 1 000 трлн ₽' },
+                  validate: (value) =>
+                    value === null || value === undefined || Number.isNaN(value)
+                      ? true
+                      : value < 0
+                        ? 'Выручка не может быть отрицательной'
+                        : value > 1e15
+                          ? 'Максимальная выручка — 1 000 трлн ₽'
+                          : true,
                 })}
               />
               {errors.company?.revenue && (
@@ -234,13 +237,14 @@ export function RegistrationForm() {
                 aria-invalid={!!errors.company?.employees}
                 {...form.register('company.employees', {
                   setValueAs: (v) => (v === '' ? null : Number(v)),
-                  min: { value: 1, message: 'Укажите положительное число сотрудников' },
-                  max: { value: 10000000, message: 'Максимум — 10 млн сотрудников' },
                   validate: (value) =>
-                    value === null ||
-                    value === undefined ||
-                    Number.isInteger(value) ||
-                    'Укажите целое число сотрудников',
+                    value === null || value === undefined || Number.isNaN(value)
+                      ? true
+                      : value < 1
+                        ? 'Укажите положительное число сотрудников'
+                        : value > 10000000
+                          ? 'Максимум — 10 млн сотрудников'
+                          : Number.isInteger(value) || 'Укажите целое число сотрудников',
                 })}
               />
               {errors.company?.employees && (
@@ -255,7 +259,7 @@ export function RegistrationForm() {
               Укажите название, отрасль и регион компании — не менее двух символов.
             </p>
           )}
-          <Button className="w-full" type="button" onClick={() => void next()}>
+          <Button className="w-full" type="button" onClick={next}>
             Продолжить
             <ArrowRight className="size-4" />
           </Button>
@@ -330,7 +334,8 @@ export function RegistrationForm() {
             </Button>
           </div>
           <p className="text-xs leading-5 text-muted-foreground">
-            Будет создан новый профиль. Чужие компании, сохранения и диалоги в аккаунт не попадут.
+            Новый профиль сразу появится в поиске аккаунтов. Чужие компании, сохранения и диалоги в
+            него не попадут.
           </p>
         </>
       )}

@@ -1,97 +1,110 @@
-# Новостная аналитика · Альфа Бизнес
+# Альфа Контекст
 
-События рынка в контексте компании: факты, персональная интерпретация, источники и ограничения.
+**Персональная новостная аналитика для бизнеса.** Сервис сопоставляет события рынка с профилем конкретной компании, объясняет влияние для CFO или CEO и показывает источники каждого вывода.
 
-[![Контекст компании из набора организаторов](docs/screenshots/company-desktop.png)](docs/screenshots/company-desktop.png)
+[![Рабочая лента Альфа Контекст](docs/screenshots/feed-desktop.png)](docs/screenshots/feed-desktop.png)
 
-Рабочие экраны подключены к Fastify API: лента, сохранённое, профиль, история, разбор, источники, вопросы и обратная связь. Состояние хранится в PostgreSQL. Вход без SSO — по логину и паролю, с HttpOnly сессией. Для CLIENT из датасета создаются отдельные аккаунты; новый пользователь может зарегистрироваться со своей компанией.
+## Что увидит жюри
 
-Анализ выполняется собственным LangGraph-агентом в отдельном BullMQ worker. Ранжирование учитывает профиль и ракурс CFO/CEO; checkpoints и журнал вызовов сохраняются в SQL. Для генерации нужны настроенный разрешённый LLM gateway и подтверждённый предел стоимости запроса. Без них интерфейс показывает недоступность нового анализа, а профиль и ранее полученные результаты остаются доступны. Подмена ответа учебными данными исключена.
+1. На входе найдите компанию по ID, названию или имени профиля и выберите её — пароль не нужен.
+2. Переключите ракурс **CFO / CEO**: порядок и объяснения событий изменятся под задачи роли.
+3. Откройте карточку: факт, влияние, риск, возможность, следующий шаг и цитаты из источников разделены.
+4. Создайте новую компанию, заполните её признаки и проверьте персонализацию на собственном профиле.
 
-[Запуск](#запуск) · [Данные и OCR](#данные-и-ocr) · [Аккаунты и архитектура](specs/13-accounts-and-packages.md) · [API](specs/05-api-and-ui.md) · [ML-часть](packages/agent/README.md)
+Каждый из **41 968 CLIENT** в наборе получает отдельный SQL-профиль и видит только свою компанию. Сохранения, история анализа, вопросы и оценки переживают перезагрузку и не смешиваются между пользователями.
 
-## Запуск
+<p align="center">
+  <img src="docs/screenshots/login.png" width="720" alt="Поиск и выбор компании без пароля" />
+</p>
 
-Node.js **24.19.0**, pnpm **11.25.0**, Python 3 для загрузки набора и локальной выдачи доступа.
+## Почему решение полезно
+
+| Проблема                                       | Что делает продукт                                                                  |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Общая новостная лента перегружает руководителя | Ранжирует события по отрасли, региону, оборотам, продуктам банка и внешней торговле |
+| Один текст не подходит разным ролям            | Формирует отдельный ракурс для CFO и CEO                                            |
+| AI-выводам трудно доверять                     | Отделяет факт от интерпретации, прикладывает цитаты и явно показывает ограничения   |
+| Долгий анализ теряется при закрытии страницы   | Выполняет граф в BullMQ worker, хранит checkpoints и восстанавливает состояние      |
+
+## Как это работает
+
+```mermaid
+flowchart LR
+  UI[React + TanStack Start] --> API[Fastify API]
+  API --> PG[(PostgreSQL)]
+  API --> Q[BullMQ / Redis]
+  Q --> W[LangGraph worker]
+  W --> D[CSV + RSS + OCR]
+  W --> L[LLM gateway]
+  W --> PG
+  API --> UI
+```
+
+- **Frontend:** React, TanStack Start/Query, shadcn/ui, typed OpenAPI client.
+- **Backend:** Fastify, Drizzle, PostgreSQL, Redis/BullMQ, strict tenant scope.
+- **Agent:** LangGraph, BM25 ranking, tools over company/news/bank data, SQL checkpoints and model-call journal.
+- **Data:** 85 525 company rows, 9 банковских PDF / 64 страницы и обновляемый корпус RSS-публикаций.
+
+## Быстрый запуск
+
+Нужны Node.js **24.19**, pnpm **11**, Docker и Python 3.
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm --filter @alfa/agent build
 python3 scripts/fetch-data.py
-pnpm --filter @alfa/agent ingest
-# Создайте projects/backend/.env из .env.example, если файла ещё нет.
 pnpm infra:up
 pnpm db:migrate
 pnpm db:seed
 pnpm dev
 ```
 
-Откройте http://localhost:3000. Логины и пароли всех **41 968** CLIENT — в [docs/dataset-accounts.md](docs/dataset-accounts.md), например логин `client_u_1595`. Сид создаёт отдельный аккаунт на компанию, а повторный запуск сохраняет пароли из Markdown. PROSPECT/CLOSE_CLIENT не получают доступ. Пароли пользователей из формы регистрации в этот файл не записываются.
+Откройте [http://localhost:3000](http://localhost:3000). Backend доступен на `:3001`, OpenAPI — на [http://localhost:3001/docs](http://localhost:3001/docs). Команда `db:seed` создаёт поисковые профили для всех CLIENT; логины и пароли не требуются.
 
-На вкладке **«Создать аккаунт»** задайте логин/пароль, название, отрасль, регион и признаки новой компании. Регистрация создаёт новый профиль, автоматически выполняет вход и позволяет пробовать персонализацию без изменения CSV. Профиль и доступ сохраняются в PostgreSQL, API и worker получают их без перезапуска.
+Без LLM сервис позволяет просматривать профили и уже сохранённые результаты. Для нового анализа задайте в `projects/backend/.env` значения из [.env.example](projects/backend/.env.example): `AGENT_PROVIDER=langgraph`, `LLM_BASE_URL`, `LLM_API_KEY`, разрешённую модель и подтверждённый `LLM_GATEWAY_REQUEST_CAP_RUB`. Затем перезапустите API и выполните `pnpm worker`.
 
-Backend — порт **3001**, Swagger — http://localhost:3001/docs. Nitro проксирует `/api/*` в Fastify. `CORS_ORIGIN` должен совпадать с origin frontend. Для другого адреса API используйте `API_PROXY_TARGET` при dev/сборке frontend. Сид генерирует постоянный `AUTH_SESSION_SECRET` в игнорируемой .env; production требует явного секрета и HTTPS. Вход опубликованными dataset-паролями в production по умолчанию выключен; `ALLOW_DATASET_LOGIN=true` включает его явно. [Устройство доступа](specs/13-accounts-and-packages.md).
+Исходные ссылки на данные находятся в [брифе](specs/source/brief.pdf): [CSV, стр. 15](https://drive.google.com/drive/folders/1Ep8wWoEHTg5Q8kwrLx2j_xFyxGUEVxFq) и [материалы банка, стр. 17](https://drive.google.com/drive/folders/15xZTLF1lZ65p6o5xpNA_fRbxjoV-UlG1). Загруженные `data/raw` и `data/processed` не попадают в Git.
 
-Чтобы включить генерацию, заполните `projects/backend/.env` по [.env.example](projects/backend/.env.example): `AGENT_PROVIDER=langgraph`, `LLM_BASE_URL`, `LLM_API_KEY`, разрешённая модель и `LLM_GATEWAY_REQUEST_CAP_RUB`. Последняя переменная подтверждает установленный оператором шлюза жёсткий предел, а не устанавливает его. Резерв должен покрывать `(AGENT_MAX_STEPS + 2) × cap`.
+## Репозиторий
 
-Перезапустите API и отдельно запустите `pnpm worker`. Production требует HTTPS и `NODE_ENV=production`; `DEV_AUTH` и `fixture` запрещены. SSO/OIDC и самостоятельное управление пользователями пока не подключены. [Сессии и ограничения](specs/12-product-workspace.md).
-
-`RANKING_LIMIT` задаёт число кандидатов на одну сводку: по умолчанию 10, максимум 20. Агент пропускает нерелевантные события, а сервер публикует только события с проверенной цитатой собственного источника, поэтому карточек может быть меньше. Для 10 событий в `.env.example` указан `LLM_MAX_OUTPUT_TOKENS=10000`; слишком короткий ответ может обрезать JSON. После изменений в `packages/agent` обязательно пересоберите пакет и перезапустите worker.
-
-В ленту попадают все разобранные события, прошедшие проверку. `FEED_CARDS` при необходимости ограничивает их число, сначала оставляя события с рисками или возможностями. По умолчанию `FEED_CARDS` не задан. `AGENT_VERIFY=true` включает дополнительную проверку выводов моделью, по умолчанию она выключена.
-
-Новости обновляются раз в сутки, если задан `NEWS_REFRESH_CRON` (в `compose.coolify.yaml` — `0 9 * * *`, время московское, `NEWS_REFRESH_TZ`). Worker запускает `pnpm news:refresh`: новые новости из RSS, их полные тексты и разметку для отбора. Через минуту после обновления API и worker подхватывают новый корпус без перезапуска. Вручную то же самое делает `pnpm news:refresh` из корня. [Интеграция ML-части](packages/agent/HANDOFF.md).
-
-Лента получает из ответа агента краткое «Главное», тип события, риски, возможности и действия; вопросы — отдельный прямой ответ. Форматировщик не может добавлять цитаты, отсутствующие в ответе агента. Некорректные утверждения исключаются по одному, а не обнуляют всю сводку. Наличие PDF без распознанного текста не означает доступности позиции банка: проверенный OCR подключается отдельно (см. [handoff](packages/agent/HANDOFF.md)).
-
-## Данные и OCR
-
-Ссылки находятся в [исходном PDF](specs/source/brief.pdf): [CSV, с. 15](https://drive.google.com/drive/folders/1Ep8wWoEHTg5Q8kwrLx2j_xFyxGUEVxFq), [материалы банка, с. 17](https://drive.google.com/drive/folders/15xZTLF1lZ65p6o5xpNA_fRbxjoV-UlG1). Загрузчик проверяет размеры файлов и записывает SHA-256 manifest. `data/raw` и `data/processed` исключены из Git и Docker context.
-
-Проверено в этой среде: 85 525 строк компаний, 9 PDF/64 страницы, 1 037 RSS-публикаций из 7 источников. Два источника не ответили корректно. Названия организаций обезличены: интерфейс показывает идентификаторы из набора, не вымышленные бренды.
-
-PDF — сканы. Для локального OCR нужен Tesseract с языками `rus+eng`:
-
-```sh
-pnpm --filter @alfa/agent ingest --bank
-python3 scripts/ocr-bank.py
-pnpm --filter @alfa/agent ingest --bank
+```text
+projects/
+  frontend/       интерфейс и пользовательские сценарии
+  backend/        API, бизнес-модули и worker
+packages/
+  api-client/     OpenAPI-схема и сгенерированные типы
+  agent/          граф, инструменты, ranking, ingestion и eval
+specs/            продуктовые и технические спецификации
+research/         рабочее пространство для новых agent/MCP-навыков
 ```
 
-Если языковые файлы находятся отдельно, задайте `TESSDATA_PREFIX`. Скрипт возобновляется по документам и не вызывает LLM. В этой среде получено 193 фрагмента. OCR не гарантирует безошибочность распознавания; reader позволяет проверить страницу. После обновления корпуса перезапустите API и worker. В окружении с HTTP-прокси Node 24 может потребовать `NODE_USE_ENV_PROXY=1 NODE_USE_SYSTEM_CA=1`; TLS-проверку не отключайте.
+Frontend соблюдает направление импортов `app → pages → blocks → components → entities → shared`; backend разделён на domain/application/infrastructure/presentation. Границы и циклы проверяются автоматически.
 
-## Рабочий сценарий
-
-1. Выберите доступную компанию и ракурс CFO/CEO. Профиль показывает реальные признаки и неизвестные значения.
-2. Обновите сводку. Задание продолжится после закрытия страницы; его состояние и отмена доступны в истории. До завершения видна предыдущая сводка.
-3. Откройте разбор: факт, AI-вывод, позиция банка, основания приоритета, ограничения и цитаты разделены.
-4. Сохраните событие, задайте вопрос, оцените ответ или оставьте замечание. Данные доступны вашему аккаунту после reload и с другого устройства.
-5. Поиск и TXT-экспорт работают по текущим загруженным событиям. Ctrl/Cmd+K фокусирует поиск; ссылка `?insight=<UUID>` открывает сохранённый разбор.
-
-![Рабочая область](docs/screenshots/feed-desktop.png)
-
-Снимки сняты Chromium с реальным набором и отключённой генерацией до настройки LLM. Сообщение о недоступности анализа отражает конфигурацию среды. [Мобильная версия](docs/screenshots/feed-mobile.png), [тёмная тема](docs/screenshots/feed-dark.png), [вход](docs/screenshots/login.png). Нет дорисованных ответов или подставных финансовых показателей.
-
-```sh
-SCREENSHOT_USERNAME=client_u_1595 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium pnpm --filter @alfa/frontend screenshots
-```
-
-## Устройство и проверки
-
-pnpm workspaces: `projects/frontend` (React/TanStack Start/shadcn), `projects/backend` (Fastify/Drizzle/BullMQ/LangGraph), `packages/api-client` (generated OpenAPI), `packages/agent` (CSV/RSS/OCR/BM25/tools/graph), `specs`. `projects/` содержит только два приложения; вспомогательные пакеты находятся в `packages/`.
-
-Frontend: `app → pages → blocks → components → entities → shared`, TanStack Query, все 61 компонент shadcn/ui. Backend: модули companies/analytics с domain/application/infrastructure/presentation. Направление импортов и циклы проверяются автоматически. UI-kit доступен только в dev. [Архитектура](specs/07-frontend-architecture.md), [backend](specs/10-backend-implementation.md), [ranking/checkpoints](specs/11-ranking-and-checkpoints.md).
+## Проверки
 
 ```sh
 pnpm typecheck
 pnpm test
 pnpm build
 pnpm contracts:check
-RUN_INTEGRATION=true TEST_DATABASE_URL=postgresql://alfa:alfa_local_only@127.0.0.1:5432/alfa pnpm test:integration
+RUN_INTEGRATION=true TEST_DATABASE_URL=postgresql://… pnpm test:integration
 ```
 
-Playwright использует настоящий API/worker с явно заданным fixture provider и отдельным тестовым аккаунтом. Для воспроизводимого запуска смотрите [.github/workflows/ci.yaml](.github/workflows/ci.yaml): `E2E_ACCESS_KEY` используется сервисным тестовым аккаунтом, `E2E_DATASET_CREDENTIALS_FILE` указывает на результат fixture seed, `CORS_ORIGIN=http://127.0.0.1:3000`, затем `pnpm --filter @alfa/frontend test:e2e`. CI проверяет вход, SQL persistence, диалоги, источники, ranking, ошибки, mobile и часть WCAG через axe; платные LLM не вызываются.
+CI проверяет OpenAPI drift, архитектурные границы, unit/integration тесты, настоящий PostgreSQL/Redis/worker, browser-сценарии и базовую доступность через axe. Fixture provider используется только в изолированных тестах; приложение не подменяет ошибки синтетической лентой.
 
-`pnpm infra:up` поднимает PostgreSQL/Redis. `docker compose --profile apps up --build` запускает dev-контейнеры с локальной server env и read-only `data/`; без настройки LLM не включайте worker (`docker compose --profile apps up --build frontend backend`). Миграции применяются отдельным job. Volumes сохраняются; `down -v` удаляет данные. Dockerfile поддерживает необязательный BuildKit secret `extra_ca` для доверенного корпоративного CA.
+## Материалы
 
-[Все спецификации](specs/README.md) · [ML-часть](packages/agent/README.md) · [Мониторинг качества](docs/quality-monitoring.md) · [Сторонние компоненты и лицензии](THIRD_PARTY_NOTICES.md)
+- [Все спецификации](specs/README.md)
+- [Аккаунты и создание компаний](specs/13-accounts-and-packages.md)
+- [API и UI](specs/05-api-and-ui.md)
+- [Архитектура frontend](specs/07-frontend-architecture.md)
+- [Ranking и checkpoints](specs/11-ranking-and-checkpoints.md)
+- [Agent, eval и запуск](packages/agent/README.md)
+- [Мониторинг качества](docs/quality-monitoring.md)
+- [Сторонние компоненты](THIRD_PARTY_NOTICES.md)
+
+<p align="center">
+  <img src="docs/screenshots/feed-mobile.png" width="280" alt="Мобильная лента Альфа Контекст" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/feed-dark.png" width="560" alt="Тёмная тема Альфа Контекст" />
+</p>

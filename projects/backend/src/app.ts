@@ -35,7 +35,7 @@ export async function buildApp(config: Config = loadConfig(), deps?: Runtime) {
         '*.token',
         '*.apiKey',
         '*.password',
-        '*.passwordHash',
+        '*.sessionVersion',
       ],
     },
   })

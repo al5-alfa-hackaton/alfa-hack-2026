@@ -41,7 +41,6 @@ export const registrationSchema = z
       (value) => !value.startsWith('client_'),
       'Этот префикс логина используется для аккаунтов датасета',
     ),
-    password: z.string().min(10).max(128),
     company: companyInputSchema,
   })
   .strict()
@@ -50,8 +49,15 @@ export type Registration = z.infer<typeof registrationSchema>
 export type IdentityRecord = {
   id: string
   username: string
-  passwordHash: string
+  sessionVersion: string
   source: 'dataset' | 'custom'
   companyIds: string[]
 }
 export type CustomCompany = { id: string; profile: CompanyInput }
+export type AccountSummary = {
+  id: string
+  username: string
+  companyId: string
+  companyName: string
+  source: 'dataset' | 'custom'
+}

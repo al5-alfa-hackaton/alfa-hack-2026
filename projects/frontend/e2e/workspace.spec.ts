@@ -1,17 +1,7 @@
-import { readFileSync } from 'node:fs'
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 
 const accessKey = process.env.E2E_ACCESS_KEY
-function datasetPassword() {
-  const file = process.env.E2E_DATASET_CREDENTIALS_FILE
-  if (!file) throw new Error('Set E2E_DATASET_CREDENTIALS_FILE after fixture seed')
-  const line = readFileSync(file, 'utf8')
-    .split('\n')
-    .find((line) => line.startsWith('| U_1 |'))
-  if (!line) throw new Error('Fixture credentials must include U_1')
-  return line.split('|')[3]!.trim()
-}
 test.skip(!accessKey, 'Set E2E_ACCESS_KEY for an isolated fixture backend and worker')
 async function login(request: APIRequestContext) {
   const result = await request.post('/api/v1/session', { data: { token: accessKey } })
@@ -33,23 +23,21 @@ async function openFirst(page: Page) {
   await expect(page.getByRole('dialog')).toBeVisible()
   return page.getByRole('dialog')
 }
-test('signs in without SSO, keeps keys out of browser storage, and logs out', async ({ page }) => {
+test('finds a company, opens a passwordless session, and logs out', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Вход в аналитику' })).toBeVisible()
-  const password = datasetPassword()
-  await page.getByLabel('Логин', { exact: true }).fill('client_u_1')
-  await page.getByLabel('Пароль', { exact: true }).fill(password)
-  await page.getByRole('button', { name: 'Войти', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Выберите компанию' })).toBeVisible()
+  await page.getByRole('combobox', { name: 'Поиск аккаунта' }).fill('U_1')
+  await page
+    .getByRole('option', { name: 'Компания U_1 client_u_1 · U_1', exact: true })
+    .click()
   await expect(page.getByRole('heading', { name: 'События для вашего бизнеса' })).toBeVisible()
   const cookie = (await page.context().cookies()).find((item) => item.name === 'alfa_session')
   expect(cookie?.httpOnly).toBe(true)
-  expect(await page.evaluate(() => JSON.stringify(localStorage) + document.cookie)).not.toContain(
-    password,
-  )
+  expect(await page.evaluate(() => document.cookie)).not.toContain('alfa_session')
   await page.reload()
   await expect(page.getByRole('heading', { name: 'События для вашего бизнеса' })).toBeVisible()
   await page.getByRole('button', { name: 'Выйти', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Вход в аналитику' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Выберите компанию' })).toBeVisible()
 })
 test.describe('workspace backed by API and PostgreSQL', () => {
   test.beforeEach(async ({ page }) => {
@@ -341,12 +329,9 @@ test('creates a new company profile, runs personalization, and preserves it afte
   page,
 }) => {
   const username = 'trial_' + crypto.randomUUID().replaceAll('-', '').slice(0, 12)
-  const password = 'temporary-personalization-password'
   await page.goto('/')
-  await page.getByRole('tab', { name: 'Создать аккаунт', exact: true }).click()
-  await page.getByLabel('Логин', { exact: true }).fill(username)
-  await page.getByLabel('Пароль', { exact: true }).fill(password)
-  await page.getByLabel('Повторите пароль', { exact: true }).fill(password)
+  await page.getByRole('tab', { name: 'Новая компания', exact: true }).click()
+  await page.getByLabel('Имя профиля', { exact: true }).fill(username)
   await page.getByLabel('Название компании').fill('Стальная перспектива')
   await page.getByLabel('Отрасль', { exact: true }).fill('Производство стали')
   await page.getByLabel('Регион', { exact: true }).fill('Урал')
@@ -376,9 +361,8 @@ test('creates a new company profile, runs personalization, and preserves it afte
     page.getByRole('heading', { name: 'Стальная перспектива', exact: true }),
   ).toBeVisible()
   await page.getByRole('button', { name: 'Выйти', exact: true }).click()
-  await page.getByLabel('Логин', { exact: true }).fill(username)
-  await page.getByLabel('Пароль', { exact: true }).fill(password)
-  await page.getByRole('button', { name: 'Войти', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Поиск аккаунта' }).fill(username)
+  await page.getByRole('option', { name: /Стальная перспектива/ }).click()
   await expect(page.getByRole('button', { name: 'Выбрать компанию и роль' })).toContainText(
     'Стальная перспектива',
   )
@@ -387,19 +371,16 @@ test('creates a new company profile, runs personalization, and preserves it afte
 })
 test('validates registration and keeps unknown company fields empty', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('tab', { name: 'Создать аккаунт', exact: true }).click()
+  await page.getByRole('tab', { name: 'Новая компания', exact: true }).click()
   await page.getByRole('button', { name: 'Продолжить', exact: true }).click()
   await expect(page.getByText('Укажите логин', { exact: true })).toBeVisible()
   await expect(page.getByText('Шаг 1 из 2', { exact: false })).toBeVisible()
-  await page.getByLabel('Логин', { exact: true }).fill('new_' + crypto.randomUUID().slice(0, 8))
-  await page.getByLabel('Пароль', { exact: true }).fill('valid-password')
-  await page.getByLabel('Повторите пароль', { exact: true }).fill('another-password')
+  await page
+    .getByLabel('Имя профиля', { exact: true })
+    .fill('new_' + crypto.randomUUID().slice(0, 8))
   await page.getByLabel('Название компании').fill('Торговый профиль')
   await page.getByLabel('Отрасль', { exact: true }).fill('Розничная торговля')
   await page.getByLabel('Регион', { exact: true }).fill('Москва')
-  await page.getByRole('button', { name: 'Продолжить', exact: true }).click()
-  await expect(page.getByText('Пароли не совпадают')).toBeVisible()
-  await page.getByLabel('Повторите пароль', { exact: true }).fill('valid-password')
   await page.getByRole('button', { name: 'Продолжить', exact: true }).click()
   await expect(page.getByRole('combobox', { name: 'Кредиты', exact: true })).toContainText(
     'Неизвестно',

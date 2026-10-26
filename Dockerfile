@@ -20,7 +20,6 @@ RUN --mount=type=secret,id=extra_ca \
 COPY tsconfig.base.json ./
 COPY projects ./projects
 COPY packages ./packages
-COPY docs/dataset-accounts.md ./docs/dataset-accounts.md
 RUN pnpm --filter @alfa/agent build
 
 

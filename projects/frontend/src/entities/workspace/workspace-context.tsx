@@ -80,8 +80,8 @@ function useWorkspaceState() {
       if (scope.company !== undefined) setCompanyId(scope.company)
       if (scope.role) setRole(scope.role)
     },
-    login: async (username: string, password: string) => {
-      unwrap(await api.POST('/v1/session', { body: { username, password } }))
+    login: async (accountId: string) => {
+      unwrap(await api.POST('/v1/session', { body: { accountId } }))
       cache.clear()
       setCompanyId('')
       setRole('cfo')

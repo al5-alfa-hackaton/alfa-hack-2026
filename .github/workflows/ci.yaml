@@ -42,10 +42,9 @@ jobs:
           AUTH_USERS_JSON: '[{"id":"e2e-user","token":"ci-fixture-access-key-never-use-in-production","companyIds":["U_1","U_3"]}]'
           TEST_BACKEND: 'true'
           AUTH_SESSION_SECRET: ci-isolated-session-signing-secret-for-tests-only
-          E2E_DATASET_CREDENTIALS_FILE: /tmp/alfa-fixture-accounts.md
         run: |
           pnpm db:migrate
-          pnpm db:seed --fixtures --credentials /tmp/alfa-fixture-accounts.md
+          pnpm db:seed --fixtures
           pnpm --filter @alfa/backend start > /tmp/api.log 2>&1 &
           pnpm --filter @alfa/backend worker:start > /tmp/worker.log 2>&1 &
           for attempt in $(seq 1 30); do

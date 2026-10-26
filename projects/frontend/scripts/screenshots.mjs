@@ -1,4 +1,4 @@
-import { mkdir, readFile } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium, expect } from '@playwright/test'
@@ -6,15 +6,7 @@ import { chromium, expect } from '@playwright/test'
 const root = fileURLToPath(new URL('../../../', import.meta.url))
 const output = resolve(root, 'docs/screenshots')
 const baseURL = process.env.SCREENSHOT_BASE_URL ?? 'http://127.0.0.1:3000'
-const username = process.env.SCREENSHOT_USERNAME ?? 'client_u_1595'
-const credentialsFile = process.env.SCREENSHOT_CREDENTIALS_FILE ?? 'docs/dataset-accounts.md'
-const credentials = await readFile(resolve(root, credentialsFile), 'utf8')
-const row = credentials
-  .split('\n')
-  .map((line) => line.split('|').map((cell) => cell.trim()))
-  .find((cells) => cells[2] === username)
-const password = row?.[3]
-if (!password) throw new Error('Username is absent from the seeded credentials file')
+const accountId = process.env.SCREENSHOT_ACCOUNT_ID ?? 'dataset:U_1595'
 await mkdir(output, { recursive: true })
 const browser = await chromium.launch({
   executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
@@ -42,20 +34,17 @@ try {
     })
     .toBe(200)
   await page.goto(baseURL)
-  await page.getByRole('heading', { name: 'Вход в аналитику' }).waitFor()
+  await page.getByRole('heading', { name: 'Выберите компанию' }).waitFor()
   await screen('login')
   const login = await context.request.post(baseURL + '/api/v1/session', {
-    data: { username, password },
+    data: { accountId },
   })
   if (login.status() !== 200) throw new Error('Could not authenticate screenshot session')
   await page.goto(baseURL + '/company')
   await page.getByRole('table').waitFor()
   await screen('company-desktop')
   await page.goto(baseURL)
-  await page
-    .getByRole('complementary', { name: 'Контекст персонализации' })
-    .getByRole('link', { name: /Весь профиль/ })
-    .waitFor()
+  await page.getByRole('heading', { name: 'События для вашего бизнеса' }).waitFor()
   await expect(page.getByRole('status', { name: 'Загрузка данных' })).toHaveCount(0)
   await screen('feed-desktop')
   await page.getByRole('button', { name: 'Переключить тему' }).click()

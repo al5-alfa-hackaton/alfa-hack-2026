@@ -1,4 +1,20 @@
 export interface paths {
+    "/v1/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["searchAccounts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/session": {
         parameters: {
             query?: never;
@@ -332,6 +348,149 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    searchAccounts: {
+        parameters: {
+            query?: {
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            id: string;
+                            username: string;
+                            companyId: string;
+                            companyName: string;
+                            /** @enum {string} */
+                            source: "dataset" | "custom";
+                        }[];
+                    };
+                };
+            };
+            /** @description Default Response */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        retryable: boolean;
+                        /** Format: date-time */
+                        resetAt?: string;
+                    };
+                };
+            };
+            /** @description Default Response */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        retryable: boolean;
+                        /** Format: date-time */
+                        resetAt?: string;
+                    };
+                };
+            };
+            /** @description Default Response */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        retryable: boolean;
+                        /** Format: date-time */
+                        resetAt?: string;
+                    };
+                };
+            };
+            /** @description Default Response */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        retryable: boolean;
+                        /** Format: date-time */
+                        resetAt?: string;
+                    };
+                };
+            };
+            /** @description Default Response */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        retryable: boolean;
+                        /** Format: date-time */
+                        resetAt?: string;
+                    };
+                };
+            };
+            /** @description Default Response */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        retryable: boolean;
+                        /** Format: date-time */
+                        resetAt?: string;
+                    };
+                };
+            };
+            /** @description Default Response */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        retryable: boolean;
+                        /** Format: date-time */
+                        resetAt?: string;
+                    };
+                };
+            };
+        };
+    };
     createSession: {
         parameters: {
             query?: never;
@@ -342,8 +501,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    username: string;
-                    password: string;
+                    accountId: string;
                 } | {
                     token: string;
                 };
@@ -620,7 +778,6 @@ export interface operations {
             content: {
                 "application/json": {
                     username: string;
-                    password: string;
                     company: {
                         name: string;
                         industry: string;

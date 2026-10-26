@@ -25,7 +25,6 @@ const schema = z.object({
   ALLOW_UNCAPPED_LLM: bool.default(false),
   AUTH_USERS_JSON: z.string().default('[]'),
   AUTH_SESSION_SECRET: z.string().min(32).optional(),
-  ALLOW_DATASET_LOGIN: bool.optional(),
   AGENT_PROVIDER: z.enum(['disabled', 'fixture', 'langgraph']).default('disabled'),
   DATA_DIR: z.string().default(fileURLToPath(new URL('../../../data', import.meta.url))),
   LLM_BASE_URL: z.url().optional(),
@@ -96,11 +95,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
         config.LLM_GATEWAY_REQUEST_CAP_RUB * (config.AGENT_MAX_STEPS + modelCallMargin(config)) >
           config.RUN_RESERVATION_RUB)
     )
-      throw new Error('Confirm the gateway hard request cap and reserve (maxSteps + 2) calls, +1 with AGENT_VERIFY')
+      throw new Error(
+        'Confirm the gateway hard request cap and reserve (maxSteps + 2) calls, +1 with AGENT_VERIFY',
+      )
   }
   return {
     ...config,
-    ALLOW_DATASET_LOGIN: config.ALLOW_DATASET_LOGIN ?? config.NODE_ENV !== 'production',
     accounts,
   }
 }

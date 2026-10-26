@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm'
+import { asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
 import type { Database } from '../../../infrastructure/database/client.js'
 import { users, memberships, customCompanies } from '../../../infrastructure/database/schema.js'
 import { AppError } from '../../../shared/kernel/errors.js'
@@ -18,11 +18,38 @@ export class PostgresIdentityStore implements IdentityStore {
   byId(id: string) {
     return this.find(eq(users.id, id))
   }
-  byUsername(username: string) {
-    return this.find(eq(users.username, username))
+  async search(query: string, limit: number) {
+    const value = query.trim()
+    const companyName = sql<string | null>`${customCompanies.profile}->>'name'`
+    const rows = await this.db
+      .select({
+        id: users.id,
+        username: users.username,
+        companyId: memberships.companyId,
+        companyName,
+        source: users.source,
+      })
+      .from(users)
+      .innerJoin(memberships, eq(memberships.userId, users.id))
+      .leftJoin(customCompanies, eq(customCompanies.id, memberships.companyId))
+      .where(
+        value
+          ? or(
+              ilike(users.username, `%${value}%`),
+              ilike(memberships.companyId, `%${value}%`),
+              ilike(companyName, `%${value}%`),
+            )
+          : undefined,
+      )
+      .orderBy(desc(users.createdAt), asc(users.username))
+      .limit(limit)
+    return rows.map((row) => ({
+      ...row,
+      companyName: row.companyName ?? `Компания ${row.companyId}`,
+    }))
   }
   async register(
-    user: { id: string; username: string; passwordHash: string },
+    user: { id: string; username: string; sessionVersion: string },
     company: { id: string; profile: CompanyInput },
   ) {
     try {

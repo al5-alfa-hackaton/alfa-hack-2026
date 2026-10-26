@@ -727,20 +727,29 @@ describe.skipIf(!enabled)('PostgreSQL + Redis + actual worker', () => {
     expect((await waitRun(runId)).status).toBe('partial')
   }, 15000)
 
-  it('seeds isolated dataset accounts idempotently and authenticates usernames/passwords', async () => {
+  it('seeds searchable dataset accounts idempotently and opens a scoped session', async () => {
     const accounts = [
-      { companyId: 'U_1', username: 'client_u_1', password: 'dataset-' + 'a'.repeat(24) },
-      { companyId: 'U_3', username: 'client_u_3', password: 'dataset-' + 'b'.repeat(24) },
+      { companyId: 'U_1', username: 'client_u_1' },
+      { companyId: 'U_3', username: 'client_u_3' },
     ]
     await seedDatasetAccounts(runtime.database!.db, accounts)
     await seedDatasetAccounts(runtime.database!.db, accounts)
     expect(
       await runtime.database!.db.select().from(t.users).where(eq(t.users.source, 'dataset')),
     ).toHaveLength(2)
+    const directory = await app.inject({ url: '/v1/accounts?q=U_1' })
+    expect(directory.statusCode).toBe(200)
+    expect(directory.json().items).toContainEqual({
+      id: 'dataset:U_1',
+      username: 'client_u_1',
+      companyId: 'U_1',
+      companyName: 'Компания U_1',
+      source: 'dataset',
+    })
     const login = await app.inject({
       method: 'POST',
       url: '/v1/session',
-      payload: { username: 'CLIENT_U_1', password: accounts[0]!.password },
+      payload: { accountId: 'dataset:U_1' },
     })
     expect(login.statusCode).toBe(200)
     expect(login.body).not.toContain('password')
@@ -759,7 +768,7 @@ describe.skipIf(!enabled)('PostgreSQL + Redis + actual worker', () => {
         await app.inject({
           method: 'POST',
           url: '/v1/session',
-          payload: { username: 'client_u_1', password: 'incorrect-password' },
+          payload: { accountId: 'missing' },
         })
       ).statusCode,
     ).toBe(401)
@@ -767,7 +776,6 @@ describe.skipIf(!enabled)('PostgreSQL + Redis + actual worker', () => {
   it('registers a user and company atomically, hydrates another API process, and runs the actual worker', async () => {
     const body = {
       username: 'owner_' + randomUUID().slice(0, 8),
-      password: 'new-company-password-2026',
       company: {
         name: 'Стальная перспектива',
         industry: 'Производство стали',
@@ -855,14 +863,13 @@ describe.skipIf(!enabled)('PostgreSQL + Redis + actual worker', () => {
     const relogin = await app.inject({
       method: 'POST',
       url: '/v1/session',
-      payload: { username: body.username, password: body.password },
+      payload: { accountId: result.id },
     })
     expect(relogin.statusCode).toBe(200)
   }, 20000)
   it('rejects scope injection, reserved seed logins, and cross-origin registration before writing data', async () => {
     const valid = {
       username: 'secure_owner',
-      password: 'strong-password-for-test',
       company: { name: 'Новый профиль', industry: 'Металлургия', region: 'Урал' },
     }
     const count = (await runtime.database!.db.select().from(t.users)).length
